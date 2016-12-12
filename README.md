@@ -2,7 +2,8 @@
 
 Various implementations of a simple Lambda function to test performance.
 
-This is the outcome of a quick and dirty performance test to compare the performance of various AWS lambda engines.
+This is the outcome of a quick and dirty performance test performed on 2016-12-12 to compare the performance 
+of various AWS lambda engines.
 All tests were done by sending the string `"foo"` as input to each respective function using the AWS console. 
 The test setup extremely simple: repeatedly keep clicking the `Test` button in the AWS Lambda console and select 
 a representative log statement.
