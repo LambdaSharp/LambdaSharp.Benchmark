@@ -25,5 +25,5 @@ REPORT Duration: 0.27 ms    Billed Duration: 100 ms     Memory Size: 128 MB    M
 
 **C#**
 ```
-REPORT Duration: 0.85 ms    Billed Duration: 100 ms     Memory Size: 256 MB    Max Memory Used: 42 MB
+REPORT Duration: 0.85 ms    Billed Duration: 100 ms     Memory Size: 128 MB    Max Memory Used: 42 MB
 ```
