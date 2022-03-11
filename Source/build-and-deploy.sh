@@ -128,47 +128,13 @@ build_function MinimalFunction dotnet6 arm64 yes yes
 
 build_function MinimalFunction dotnetcore3.1 x86_64 no no
 # build_function MinimalFunction dotnetcore3.1 x86_64 no yes
-# build_function MinimalFunction dotnetcore3.1 x86_64 yes no
+build_function MinimalFunction dotnetcore3.1 x86_64 yes no
 # build_function MinimalFunction dotnetcore3.1 x86_64 yes yes
 
 build_function MinimalFunction dotnetcore3.1 arm64 no no
 # build_function MinimalFunction dotnetcore3.1 arm64 no yes
-# build_function MinimalFunction dotnetcore3.1 arm64 yes no
+build_function MinimalFunction dotnetcore3.1 arm64 yes no
 # build_function MinimalFunction dotnetcore3.1 arm64 yes yes
-
-# build NoTieredCompilation-NoReadyToRun
-# OUTPUT_FOLDER="$BIN/MinimalFunction-Net6-x86-NoTC-NoR2R/"
-# dotnet publish \
-#     --configuration Release \
-#     --framework net6.0 \
-#     --runtime linux-x64 \
-#     --no-self-contained \
-#     --output "$OUTPUT_FOLDER" \
-#     -property:GenerateRuntimeConfigurationFiles=true \
-#     -property:TieredCompilation=false \
-#     -property:TieredCompilationQuickJit=false \
-#     -property:PublishReadyToRun=false \
-#     "$SOURCE/MinimalFunction/"
-# pushd "$OUTPUT_FOLDER"
-# zip -9 -r "$BIN/LambdaPerformance-MinimalFuntion-Net6-x86-NoTC-NoR2R-$SUFFIX.zip" .
-# popd
-
-# # build TieredCompilation-NoReadyToRun
-# OUTPUT_FOLDER="$BIN/MinimalFunction-Net6-x86-YesTC-NoR2R/"
-# dotnet publish \
-#     --configuration Release \
-#     --framework net6.0 \
-#     --runtime linux-x64 \
-#     --no-self-contained \
-#     --output "$OUTPUT_FOLDER" \
-#     -property:GenerateRuntimeConfigurationFiles=true \
-#     -property:TieredCompilation=true \
-#     -property:TieredCompilationQuickJit=true \
-#     -property:PublishReadyToRun=false \
-#     "$SOURCE/MinimalFunction/"
-# pushd "$OUTPUT_FOLDER"
-# zip -9 -r "$BIN/LambdaPerformance-MinimalFuntion-Net6-x86-YesTC-NoR2R-$SUFFIX.zip" .
-# popd
 
 
 # create or update function
