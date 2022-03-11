@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # ensure that an AWS profile has been selected
 if [ -z "$AWS_PROFILE" ]; then
@@ -95,11 +94,12 @@ function build_function() {
             exit 1
             ;;
     esac
+    local FUNCTION_LABEL="$1-$FRAMEWORK_LABEL-$ARCHITECTURE_LABEL-$TIERED_LABEL-$READY2RUN_LABEL"
 
     # build project
     echo ""
     echo "*** BUILDING $1 [$FRAMEWORK_LABEL, $ARCHITECTURE_LABEL, $TIERED_LABEL, $READY2RUN_LABEL]"
-    OUTPUT_FOLDER="$BIN/$1-$FRAMEWORK_LABEL-$ARCHITECTURE_LABEL-$TIERED_LABEL-$READY2RUN_LABEL/"
+    OUTPUT_FOLDER="$BIN/$FUNCTION_LABEL/"
     dotnet publish \
         --configuration Release \
         --framework $FRAMEWORK_BUILD \
@@ -110,10 +110,25 @@ function build_function() {
         -property:TieredCompilation=$TIERED_BUILD \
         -property:TieredCompilationQuickJit=$TIERED_BUILD \
         -property:PublishReadyToRun=$READY2RUN_BUILD \
-        "$SOURCE/$1/"
-    pushd "$OUTPUT_FOLDER"
-    zip -9 -r "$BIN/$1-$FRAMEWORK_LABEL-$ARCHITECTURE_LABEL-$TIERED_LABEL-$READY2RUN_LABEL-$SUFFIX.zip" .
-    popd
+        "$SOURCE/$1/" > "$BIN/$FUNCTION_LABEL.log"
+
+    # check if the build was successful
+    if [ -d $OUTPUT_FOLDER ]; then
+        if [ "$(ls -A $OUTPUT_FOLDER)" ]; then
+            local ZIP_FILE="$BIN/$FUNCTION_LABEL-$SUFFIX.zip"
+
+            # compress build output into zip file
+            pushd "$OUTPUT_FOLDER" > /dev/null
+            zip -9 -r "$ZIP_FILE" . > /dev/null
+            popd > /dev/null
+            echo "==> Success: $(wc -c <"$ZIP_FILE") bytes"
+        else
+
+            # show build output and delete empty folder
+            cat "$BIN/$FUNCTION_LABEL.log"
+            rm -rf "$OUTPUT_FOLDER"
+        fi
+    fi
 }
 
 build_function MinimalFunction dotnet6 x86_64 no no
@@ -136,18 +151,15 @@ build_function MinimalFunction dotnetcore3.1 arm64 no no
 build_function MinimalFunction dotnetcore3.1 arm64 yes no
 # build_function MinimalFunction dotnetcore3.1 arm64 yes yes
 
-
 # create or update function
 # cd $BIN
-# set +e
+# +e
 # aws lambda get-function --function-name LambdaPerformance-MinimalFunction > /dev/null 2>&1
 # if [ 0 -eq $? ]; then
-#     set -e
 #     aws lambda update-function-code \
 #         --function-name LambdaPerformance-MinimalFunction \
 #         --zip-file "fileb://LambdaPerformance-MinimalFuntion-$SUFFIX.zip"
 # else
-#     set -e
 #     aws lambda create-function \
 #         --function-name LambdaPerformance-MinimalFunction \
 #         --memory-size 256 \
