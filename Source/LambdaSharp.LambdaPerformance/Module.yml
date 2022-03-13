@@ -1,0 +1,19 @@
+Module: LambdaSharp.LambdaPerformance
+Items:
+
+  - Function: MeasureFunction
+    Memory: 512
+    Timeout: 900
+
+  - Resource: FunctionPermissions
+    Value: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:LambdaPerformance-*"
+    Allow:
+      - lambda:CreateFunction
+      - lambda:UpdateFunctionConfiguration
+      - lambda:DeleteFunction
+      - lambda:InvokeFunction
+
+  - Resource: FunctionLogPermissions
+    Value: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/LambdaPerformance-*"
+    Allow:
+      - logs:DeleteLogGroup
