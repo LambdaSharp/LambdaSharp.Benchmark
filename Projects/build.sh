@@ -5,7 +5,6 @@ SCRIPT_FOLDER=`dirname -- "$(readlink -f "${BASH_SOURCE}")"`
 PROJECTS_FOLDER="$SCRIPT_FOLDER"
 BUILD_FOLDER="$SCRIPT_FOLDER/build"
 PUBLISH_FOLDER="$SCRIPT_FOLDER/publish"
-SUFFIX=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
 
 # recreate build folder
 if [ -d "$BUILD_FOLDER" ]; then
@@ -125,7 +124,7 @@ function build_function() {
     # check if the build was successful
     if [ -d $BUILD_FUNCTION_FOLDER ]; then
         if [ "$(ls -A $BUILD_FUNCTION_FOLDER)" ]; then
-            local ZIP_FILE="$PUBLISH_FOLDER/$FUNCTION_LABEL-$SUFFIX.zip"
+            local ZIP_FILE="$PUBLISH_FOLDER/$FUNCTION_LABEL.zip"
 
             # compress build output into zip file
             pushd "$BUILD_FUNCTION_FOLDER" > /dev/null

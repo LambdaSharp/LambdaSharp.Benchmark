@@ -30,8 +30,9 @@ Items:
         Type: AWS::CodeBuild::Project
         Properties:
           Artifacts:
-            Packaging: NONE
             Type: S3
+            Packaging: NONE
+            NamespaceType: NONE
             Location: !Ref CodeBuild::ArtifactBucket
           Environment:
             ComputeType: BUILD_GENERAL1_SMALL
