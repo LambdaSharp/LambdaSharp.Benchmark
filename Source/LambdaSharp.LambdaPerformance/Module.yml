@@ -8,7 +8,7 @@ Items:
     Timeout: 900
 
   - Resource: FunctionPermissions
-    Value: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:LambdaPerformance-*"
+    Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:LambdaPerformance-*
     Allow:
       - lambda:CreateFunction
       - lambda:UpdateFunctionConfiguration
@@ -16,7 +16,7 @@ Items:
       - lambda:InvokeFunction
 
   - Resource: FunctionLogPermissions
-    Value: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/LambdaPerformance-*"
+    Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/LambdaPerformance-*
     Allow:
       - logs:DeleteLogGroup
 
@@ -32,7 +32,6 @@ Items:
           Artifacts:
             Type: S3
             Packaging: NONE
-            NamespaceType: NONE
             Location: !Ref CodeBuild::ArtifactBucket
           Environment:
             ComputeType: BUILD_GENERAL1_SMALL
@@ -41,7 +40,7 @@ Items:
           ServiceRole: !GetAtt CodeBuild::Role.Arn
           Source:
             Type: S3
-            Location: !Sub "${Deployment::BucketName}/${Projects}"
+            Location: !Sub ${Deployment::BucketName}/${Projects}
 
       - Resource: Role
         Scope: MeasureFunction
@@ -49,7 +48,7 @@ Items:
         Properties:
           Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
           AssumeRolePolicyDocument:
-              Version: "2012-10-17"
+              Version: '2012-10-17'
               Statement:
                 - Effect: Allow
                   Principal:
@@ -58,14 +57,14 @@ Items:
           Policies:
             - PolicyName: CodeBuildPolicy
               PolicyDocument:
-                Version: "2012-10-17"
+                Version: '2012-10-17'
                 Statement:
                   - Effect: Allow
                     Action:
                       - logs:CreateLogGroup
                       - logs:CreateLogStream
                       - logs:PutLogEvents
-                    Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+                    Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
                   - Effect: Allow
                     Action:
                       - s3:GetBucketAcl
@@ -74,14 +73,14 @@ Items:
                       - s3:GetObjectVersion
                       - s3:ListBucket
                     Resource:
-                      - !Sub "arn:${AWS::Partition}:s3:::${Deployment::BucketName}"
-                      - !Sub "arn:${AWS::Partition}:s3:::${Deployment::BucketName}/*"
+                      - !Sub arn:${AWS::Partition}:s3:::${Deployment::BucketName}
+                      - !Sub arn:${AWS::Partition}:s3:::${Deployment::BucketName}/*
                   - Effect: Allow
                     Action:
                       - s3:PutObject
                     Resource:
-                      - !Sub "arn:${AWS::Partition}:s3:::${CodeBuild::ArtifactBucket}"
-                      - !Sub "arn:${AWS::Partition}:s3:::${CodeBuild::ArtifactBucket}/*"
+                      - !Sub arn:${AWS::Partition}:s3:::${CodeBuild::ArtifactBucket}
+                      - !Sub arn:${AWS::Partition}:s3:::${CodeBuild::ArtifactBucket}/*
                   - Effect: Allow
                     Action:
                       - codebuild:CreateReportGroup
@@ -89,13 +88,77 @@ Items:
                       - codebuild:UpdateReport
                       - codebuild:BatchPutTestCases
                       - codebuild:BatchPutCodeCoverages
-                    Resource: !Sub "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*"
+                    Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*
 
       - Resource: ArtifactBucket
+        Scope: MeasureFunction
         Type: AWS::S3::Bucket
 
       - Resource: EmptyArtifactBucket
-        Scope: MeasureFunction
         Type: LambdaSharp::S3::EmptyBucket
         Properties:
           Bucket: !Ref CodeBuild::ArtifactBucket
+
+  - Resource: RunStepFunction
+    Pragmas:
+      - no-type-validation # needed because `Definition` is defined as an empty object
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineType: STANDARD
+      RoleArn: !GetAtt StepFunctionRole.Arn
+      Definition:
+        StartAt: StartBuild
+        States:
+          StartBuild:
+            Type: Task
+            Resource: !Sub arn:${AWS::Partition}:states:::codebuild:startBuild.sync
+            Parameters:
+              ProjectName: !Ref CodeBuild::Project
+            Next: GetBuildResults
+
+          GetBuildResults:
+            Type: Choice
+            Choices:
+              - Variable: $.Reports[0].Status
+                StringEquals: SUCCEEDED
+                Next: BuildSuccess
+            Default: BuildFailed
+
+          BuildSuccess:
+            Type: Succeed
+
+          BuildFailed:
+            Type: Fail
+
+  - Resource: StepFunctionRole
+    Type: AWS::IAM::Role
+    Properties:
+      Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
+      AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: !Sub states.${AWS::Region}.amazonaws.com
+              Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuild::Project}
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt MeasureFunction.Arn
+              - Effect: Allow
+                Action:
+                  - events:PutTargets
+                  - events:PutRule
+                  - events:DescribeRule
+                Resource:
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+

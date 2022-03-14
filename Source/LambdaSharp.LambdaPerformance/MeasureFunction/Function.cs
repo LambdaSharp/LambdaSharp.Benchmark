@@ -29,6 +29,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     //--- Fields ---
     private IAmazonLambda? _lambdaClient;
     private IAmazonCloudWatchLogs? _logsClient;
+    private string? _buildBucketName;
 
     //--- Constructors ---
     public Function() : base(new LambdaSharp.Serialization.LambdaSystemTextJsonSerializer()) { }
@@ -37,9 +38,13 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private IAmazonLambda LambdaClient => _lambdaClient ?? throw new InvalidOperationException();
     private IAmazonCloudWatchLogs LogsClient => _logsClient ?? throw new InvalidOperationException();
     private string AwsAccountId => CurrentContext.InvokedFunctionArn.Split(':')[4];
+    private string BuildBucketName => _buildBucketName ?? throw new InvalidOperationException();
 
     //--- Methods ---
     public override async Task InitializeAsync(LambdaConfig config) {
+
+        // read configuration settings
+        _buildBucketName = config.ReadS3BucketName("CodeBuild::ArtifactBucket");
 
         // initialize clients
         _lambdaClient = new AmazonLambdaClient();
@@ -81,7 +86,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 MemorySize = request.MemorySize,
                 FunctionName = functionName,
                 Code = new() {
-                    S3Bucket = Info.DeploymentBucketName,
+                    S3Bucket = BuildBucketName,
                     S3Key = request.ZipFile
                 },
                 Handler = request.Handler,
