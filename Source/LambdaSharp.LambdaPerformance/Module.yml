@@ -119,7 +119,7 @@ Items:
           GetBuildResults:
             Type: Choice
             Choices:
-              - Variable: $.Reports[0].Status
+              - Variable: $.Build.BuildStatus
                 StringEquals: SUCCEEDED
                 Next: BuildSuccess
             Default: BuildFailed
@@ -149,6 +149,8 @@ Items:
               - Effect: Allow
                 Action:
                   - codebuild:StartBuild
+                  - codebuild:StopBuild
+                  - codebuild:BatchGetBuilds
                 Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuild::Project}
               - Effect: Allow
                 Action:
