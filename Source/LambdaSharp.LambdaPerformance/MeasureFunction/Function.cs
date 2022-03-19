@@ -167,6 +167,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             };
         } finally {
 
+            // wait to ensure log groups have been created
+            await Task.Delay(TimeSpan.FromSeconds(3));
+
             // delete Lambda function
             try {
                 LogInfo($"Delete Lambda function: {functionName}");
@@ -179,8 +182,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             var logGroupName = $"/aws/lambda/{functionName}";
             try {
                 LogInfo($"Delete log group: {logGroupName}");
-
-                // TODO: this is not working for some reason; the call doesn't find the log group even though it exists
                 await LogsClient.DeleteLogGroupAsync(new() {
                     LogGroupName = logGroupName
                 });
