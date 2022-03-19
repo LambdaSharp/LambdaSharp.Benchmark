@@ -23,6 +23,16 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
+    public double InitDurationMax { get; set; }
+    public double InitDurationMin { get; set; }
+    public double InitDurationAverage { get; set; }
+    public double InitDurationStdDev { get; set; }
+    public double InitDurationMedian { get; set; }
+    public double UsedDurationMax { get; set; }
+    public double UsedDurationMin { get; set; }
+    public double UsedDurationAverage { get; set; }
+    public double UsedDurationStdDev { get; set; }
+    public double UsedDurationMedian { get; set; }
     public List<TestResult>? Results { get; set; }
 }
 
@@ -30,6 +40,7 @@ public class TestResult {
 
     //--- Properties ---
     public int Iteration { get; set; }
+    public bool Success { get; set; }
     public double InitDuration { get; set; }
     public double UsedDuration { get; set; }
 }
@@ -47,6 +58,23 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     //--- Class Methods ---
     private static string RandomString(int length)
         => new string(Enumerable.Range(0, length).Select(_ => CHARACTERS[_random.Next(CHARACTERS.Length)]).ToArray());
+
+    private static double Median(IEnumerable<double> numbers) {
+        ArgumentAssertException.Assert(numbers.Any());
+        var orderedNumbers = numbers.OrderBy(number => number).ToArray();
+        var middleIndex = orderedNumbers.Length / 2;
+        return ((orderedNumbers.Length & 1) == 0)
+            ? (orderedNumbers[middleIndex - 1] + orderedNumbers[middleIndex]) / 2.0
+            : orderedNumbers[middleIndex];
+    }
+
+    private static (double Average, double StandardDeviation) AverageAndStandardDeviation(IEnumerable<double> numbers) {
+        ArgumentAssertException.Assert(numbers.Any());
+        var average = numbers.Average();
+        var deltaSquaredSum = numbers.Sum(number => (number - average) * (number - average));
+        var standardDeviation = Math.Sqrt(deltaSquaredSum / numbers.Count());
+        return (average, standardDeviation);
+    }
 
     //--- Fields ---
     private IAmazonLambda? _lambdaClient;
@@ -166,10 +194,21 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
 
         // return final response
+        var initDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.InitDuration));
+        var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.UsedDuration));
         return new() {
             Success = true,
-            Message = "Performance test complete",
-            Results = results
+            Results = results,
+            InitDurationMin = results.Min(result => result.InitDuration),
+            InitDurationMax = results.Max(result => result.InitDuration),
+            InitDurationAverage = initDurationAverageAndStandardDeviation.Average,
+            InitDurationStdDev = initDurationAverageAndStandardDeviation.StandardDeviation,
+            InitDurationMedian = Median(results.Select(result => result.InitDuration)),
+            UsedDurationMin = results.Min(result => result.UsedDuration),
+            UsedDurationMax = results.Max(result => result.UsedDuration),
+            UsedDurationAverage = usedDurationAverageAndStandardDeviation.Average,
+            UsedDurationStdDev = usedDurationAverageAndStandardDeviation.StandardDeviation,
+            UsedDurationMedian = Median(results.Select(result => result.UsedDuration))
         };
     }
 
@@ -203,7 +242,17 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 InvocationType = InvocationType.RequestResponse,
                 LogType = LogType.Tail
             });
-            var result = ParseLambdaReportFromLogResult(i, response.LogResult);
+            var result = ParseLambdaReportFromLogResult(response.LogResult);
+            if(result.InitDuration == 0.0) {
+
+                // invocation didn't cause a cold-start; add an additional run
+                ++runs;
+                continue;
+            }
+
+            // add result
+            result.Iteration = i;
+            result.Success = string.IsNullOrEmpty(response.FunctionError);
             results.Add(result);
             LogInfo($"Result: Iteration={i}, InitDuration={result.InitDuration * 1000.0:0.###}ms, UsedDuration={result.UsedDuration * 1000.0:0.###}ms");
         }
@@ -238,7 +287,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         } while(true);
     }
 
-    private TestResult ParseLambdaReportFromLogResult(int iteration, string logResult) {
+    private TestResult ParseLambdaReportFromLogResult(string logResult) {
 
         // Sample Log Result: REPORT RequestId: 7234b561-1e51-45f4-a031-a71b9836f038	Duration: 327.16 ms	Billed Duration: 328 ms	Memory Size: 256 MB	Max Memory Used: 61 MB	Init Duration: 243.54 ms
 
@@ -250,13 +299,11 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 ? double.Parse(match.Groups["InitDuration"].Value) / 1000.0
                 : 0.0;
             return new() {
-                Iteration = iteration,
                 UsedDuration = usedDuration,
                 InitDuration = initDuration
             };
         }
         return new() {
-            Iteration = iteration,
             UsedDuration = 0.0,
             InitDuration = 0.0
         };
