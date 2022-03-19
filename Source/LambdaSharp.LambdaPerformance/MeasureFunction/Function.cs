@@ -3,11 +3,12 @@ namespace LambdaSharp.LambdaPerformance.DeployFunction;
 using Amazon.Lambda;
 using Amazon.CloudWatchLogs;
 using LambdaSharp;
+using System.Text;
+using System.Text.RegularExpressions;
 
 public class FunctionRequest {
 
     //--- Properties ---
-    public string? FunctionName { get; set; }
     public string? Handler { get; set; }
     public string? ZipFile { get; set; }
     public string? Runtime { get; set; }
@@ -22,9 +23,30 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
+    public List<TestResult>? Results { get; set; }
+}
+
+public class TestResult {
+
+    //--- Properties ---
+    public int Iteration { get; set; }
+    public double InitDuration { get; set; }
+    public double UsedDuration { get; set; }
 }
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
+
+    //--- Constants ---
+    private const string CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private const int MAX_LAMBDA_NAME_LENGTH = 64;
+
+    //--- Class Fields ---
+    private static Random _random = new();
+    private static Regex _lambdaReportPattern = new(@"REPORT RequestId: (?<RequestId>[\da-f\-]+)\s*Duration: (?<UsedDuration>[\d\.]+) ms\s*Billed Duration: (?<BilledDuration>[\d\.]+) ms\s*Memory Size: (?<MaxMemory>[\d\.]+) MB\s*Max Memory Used: (?<UsedMemory>[\d\.]+) MB\s*(Init Duration: (?<InitDuration>[\d\.]+) ms)?");
+
+    //--- Class Methods ---
+    private static string RandomString(int length)
+        => new string(Enumerable.Range(0, length).Select(_ => CHARACTERS[_random.Next(CHARACTERS.Length)]).ToArray());
 
     //--- Fields ---
     private IAmazonLambda? _lambdaClient;
@@ -55,7 +77,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // validate request
         try {
-            ArgumentAssertException.Assert(request.FunctionName is not null);
             ArgumentAssertException.Assert(request.Handler is not null);
             ArgumentAssertException.Assert(request.ZipFile is not null);
             ArgumentAssertException.Assert(request.Runtime is not null);
@@ -71,7 +92,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
 
         // create Lambda function
-        var functionName = $"LambdaPerformance-{request.FunctionName}";
+        var functionNamePrefix = $"{Info.ModuleId}-Test-";
+        var functionName = functionNamePrefix + RandomString(MAX_LAMBDA_NAME_LENGTH - functionNamePrefix.Length);
+        List<TestResult>? results;
         try {
 
             // create Lambda function
@@ -85,6 +108,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 PackageType = PackageType.Zip,
                 MemorySize = request.MemorySize,
                 FunctionName = functionName,
+                Description = $"Testing {request.ZipFile} (Memory: {request.MemorySize}, Arch: {request.Architecture}, Runtime: {request.Runtime})",
                 Code = new() {
                     S3Bucket = BuildBucketName,
                     S3Key = request.ZipFile
@@ -94,9 +118,19 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             });
 
             // conduct cold-start performance expirement
-            await PerformanceTestAsync(functionName, request.Payload, request.Runs);
+            try {
+                results = await PerformanceTestAsync(functionName, request.Payload, request.Runs);
+            } catch(Exception e) {
+                LogErrorAsInfo(e, "Lambda invocation failed; aborting peformance check");
+
+                // return error response
+                return new() {
+                    Success = false,
+                    Message = "Performance test failed (see log for more details)"
+                };
+            }
         } catch(Exception e) {
-            LogErrorAsInfo(e, "Lambda invocation failed; aborting peformance check");
+            LogErrorAsInfo(e, "Lambda creation failed; aborting peformance check");
 
             // return error response
             return new() {
@@ -107,6 +141,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
             // delete Lambda function
             try {
+                LogInfo($"Delete Lambda function: {functionName}");
                 await LambdaClient.DeleteFunctionAsync(functionName);
             } catch(Exception e) {
                 LogErrorAsInfo(e, $"Unable to delete function: {functionName}");
@@ -115,9 +150,16 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             // delete log group, which is automatically created by Lambda invocation
             var logGroupName = $"/aws/lambda/{functionName}";
             try {
+                LogInfo($"Delete log group: {logGroupName}");
+
+                // TODO: this is not working for some reason; the call doesn't find the log group even though it exists
                 await LogsClient.DeleteLogGroupAsync(new() {
                     LogGroupName = logGroupName
                 });
+            } catch(Amazon.CloudWatchLogs.Model.ResourceNotFoundException) {
+
+                // nothing to do
+                LogInfo($"Log group does not exist: {logGroupName}");
             } catch(Exception e) {
                 LogErrorAsInfo(e, $"Unable to delete log group: {logGroupName}");
             }
@@ -126,16 +168,24 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         // return final response
         return new() {
             Success = true,
-            Message = "Performance test complete"
+            Message = "Performance test complete",
+            Results = results
         };
     }
 
-    private async Task PerformanceTestAsync(string functionName, string payload, int runs) {
+    private async Task<List<TestResult>> PerformanceTestAsync(string functionName, string payload, int runs) {
+        var results = new List<TestResult>();
+
+        // wait for Lambda creation to complete
+        await WaitForFunctionToBeReady(functionName);
+
+        // run tests
         for(var i = 1; i <= runs; ++i) {
             LogInfo($"LambdaPerformance iteration {i}");
 
             // update Lambda function configuration to force a cold start
             await LambdaClient.UpdateFunctionConfigurationAsync(new() {
+                FunctionName = functionName,
                 Environment = new() {
                     Variables = {
                         ["LAMBDAPERFORMANCE_RUN"] = i.ToString()
@@ -144,7 +194,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             });
 
             // wait for Lambda configuration changes to propagate
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            await WaitForFunctionToBeReady(functionName);
 
             // invoke Lambda function
             var response = await LambdaClient.InvokeAsync(new() {
@@ -153,7 +203,62 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 InvocationType = InvocationType.RequestResponse,
                 LogType = LogType.Tail
             });
-            LogInfo($"LogResult: {response.LogResult}");
+            var result = ParseLambdaReportFromLogResult(i, response.LogResult);
+            results.Add(result);
+            LogInfo($"Result: Iteration={i}, InitDuration={result.InitDuration * 1000.0:0.###}ms, UsedDuration={result.UsedDuration * 1000.0:0.###}ms");
         }
+        return results;
+    }
+
+    private async Task WaitForFunctionToBeReady(string functionName) {
+        do {
+
+            // wait for function to stabilize
+            await Task.Delay(TimeSpan.FromSeconds(1));
+
+            // fetch current function state
+            var getFunctionResponse = await LambdaClient.GetFunctionAsync(functionName);
+            var state = getFunctionResponse.Configuration.State;
+            if((state == State.Active) || (state == State.Inactive)) {
+
+                // function is ready to go
+                return;
+            }
+            if(state == State.Pending) {
+
+                // try again
+                continue;
+            }
+            if(state == State.Failed) {
+
+                // function is in an unusable state
+                throw new ApplicationException($"Lambda is in failed state");
+            }
+            throw new ApplicationException($"Unexpected Lambda state: {state}");
+        } while(true);
+    }
+
+    private TestResult ParseLambdaReportFromLogResult(int iteration, string logResult) {
+
+        // Sample Log Result: REPORT RequestId: 7234b561-1e51-45f4-a031-a71b9836f038	Duration: 327.16 ms	Billed Duration: 328 ms	Memory Size: 256 MB	Max Memory Used: 61 MB	Init Duration: 243.54 ms
+
+        var decodedLogResult = Encoding.UTF8.GetString(Convert.FromBase64String(logResult));
+        var match = _lambdaReportPattern.Match(decodedLogResult);
+        if(match.Success) {
+            var usedDuration = double.Parse(match.Groups["UsedDuration"].Value) / 1000.0;
+            var initDuration = match.Groups["InitDuration"].Success
+                ? double.Parse(match.Groups["InitDuration"].Value) / 1000.0
+                : 0.0;
+            return new() {
+                Iteration = iteration,
+                UsedDuration = usedDuration,
+                InitDuration = initDuration
+            };
+        }
+        return new() {
+            Iteration = iteration,
+            UsedDuration = 0.0,
+            InitDuration = 0.0
+        };
     }
 }

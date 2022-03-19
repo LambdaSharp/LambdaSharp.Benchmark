@@ -27,4 +27,5 @@ artifacts:
   files:
     - "*.zip"
     - "*.log"
+    - "*.json"
   base-directory: publish

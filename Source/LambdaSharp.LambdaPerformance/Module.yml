@@ -8,15 +8,21 @@ Items:
     Timeout: 900
 
   - Resource: FunctionPermissions
-    Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:LambdaPerformance-*
+    Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Module::Id}-Test-*
     Allow:
       - lambda:CreateFunction
       - lambda:UpdateFunctionConfiguration
       - lambda:DeleteFunction
       - lambda:InvokeFunction
+      - lambda:GetFunction
+
+  - Resource: LambdaRolePermissions
+    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaDefaultRole"
+    Allow:
+      - iam:PassRole
 
   - Resource: FunctionLogPermissions
-    Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/LambdaPerformance-*
+    Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
     Allow:
       - logs:DeleteLogGroup
 
@@ -42,8 +48,11 @@ Items:
             Type: S3
             Location: !Sub ${Deployment::BucketName}/${Projects}
 
+      - Variable: ProjectName
+        Scope: ListArtifactsFunction
+        Value: !Ref CodeBuild::Project
+
       - Resource: Role
-        Scope: MeasureFunction
         Type: AWS::IAM::Role
         Properties:
           Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
@@ -91,8 +100,11 @@ Items:
                     Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*
 
       - Resource: ArtifactBucket
-        Scope: MeasureFunction
+        Scope: MeasureFunction, ListArtifactsFunction
         Type: AWS::S3::Bucket
+        Allow:
+          - s3:ListBucket
+          - s3:GetObject
 
       - Resource: EmptyArtifactBucket
         Type: LambdaSharp::S3::EmptyBucket
@@ -164,3 +176,6 @@ Items:
                 Resource:
                   - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
 
+  - Function: ListArtifactsFunction
+    Memory: 1769
+    Timeout: 30
