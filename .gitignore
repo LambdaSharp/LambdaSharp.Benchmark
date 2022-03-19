@@ -5,3 +5,7 @@ debug.log
 # .NET Core
 bin
 obj
+
+# Ignore Projects artifacts
+Projects/build
+Projects/publish

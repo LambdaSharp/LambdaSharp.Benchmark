@@ -105,10 +105,23 @@ function build_function() {
     esac
     local FUNCTION_LABEL="$1-$FRAMEWORK_LABEL-$ARCHITECTURE_LABEL-$TIERED_LABEL-$READY2RUN_LABEL"
 
+    # check expected files exist
+    local FUNCTION_PROJECT="$PROJECTS_FOLDER/$1/$1.csproj"
+    if [ ! -f "$FUNCTION_PROJECT" ]; then
+        echo "Could not find project for $1"
+        exit 1
+    fi
+    local RUNSPEC_FILE="$PROJECTS_FOLDER/$1/RunSpec.json"
+    if [ ! -f "$RUNSPEC_FILE" ]; then
+        echo "Could not find RunSpec.json for $1"
+        exit 1
+    fi
+
     # build project
     echo ""
     echo "*** BUILDING $1 [$FRAMEWORK_LABEL, $ARCHITECTURE_LABEL, $TIERED_LABEL, $READY2RUN_LABEL]"
-    BUILD_FUNCTION_FOLDER="$BUILD_FOLDER/$FUNCTION_LABEL/"
+    local BUILD_FUNCTION_FOLDER="$BUILD_FOLDER/$FUNCTION_LABEL/"
+    local LOG_FILE="$PUBLISH_FOLDER/$FUNCTION_LABEL.log"
     dotnet publish \
         --configuration Release \
         --framework $FRAMEWORK_BUILD \
@@ -119,7 +132,7 @@ function build_function() {
         -property:TieredCompilation=$TIERED_BUILD \
         -property:TieredCompilationQuickJit=$TIERED_BUILD \
         -property:PublishReadyToRun=$READY2RUN_BUILD \
-        "$PROJECTS_FOLDER/$1/" > "$PUBLISH_FOLDER/$FUNCTION_LABEL.log"
+        "$PROJECTS_FOLDER/$1/" > "$LOG_FILE"
 
     # check if the build was successful
     if [ -d $BUILD_FUNCTION_FOLDER ]; then
@@ -131,6 +144,10 @@ function build_function() {
             zip -9 -r "$ZIP_FILE" . > /dev/null
             popd > /dev/null
             echo "==> Success: $(wc -c <"$ZIP_FILE") bytes"
+
+            # copy JSON file and add runtime/architecture details
+            local RUNSPEC_OUTPUT="$PUBLISH_FOLDER/$FUNCTION_LABEL.json"
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Runtime\":\"$2\",\"Architecture\":\"$3\"}" > "$RUNSPEC_OUTPUT"
         else
 
             # show build output and delete empty folder
