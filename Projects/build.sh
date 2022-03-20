@@ -143,11 +143,12 @@ function build_function() {
             pushd "$BUILD_FUNCTION_FOLDER" > /dev/null
             zip -9 -r "$ZIP_FILE" . > /dev/null
             popd > /dev/null
-            echo "==> Success: $(wc -c <"$ZIP_FILE") bytes"
+            local ZIP_SIZE="$(wc -c <"$ZIP_FILE")"
+            echo "==> Success: $ZIP_SIZE bytes"
 
             # copy JSON file and add runtime/architecture details
             local RUNSPEC_OUTPUT="$PUBLISH_FOLDER/$FUNCTION_LABEL.json"
-            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$2\",\"Architecture\":\"$3\"}" > "$RUNSPEC_OUTPUT"
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$2\",\"Architecture\":\"$3\",\"ZipSize\": $ZIP_SIZE}" > "$RUNSPEC_OUTPUT"
         else
 
             # show build output and delete empty folder
