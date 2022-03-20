@@ -20,6 +20,7 @@ public class RunSpec {
     public string? Runtime { get; set; }
     public string? Architecture { get; set; }
     public string? ZipFile { get; set; }
+    public long ZipSize { get; set; }
 }
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {

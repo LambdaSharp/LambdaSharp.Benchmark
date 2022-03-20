@@ -30,16 +30,17 @@
             "ResultSelector": {
                 "RunSpecs.$": "$.Payload.RunSpecs"
             },
-            "ResultPath": "$.Projects",
+            "ResultPath": "$.Functions",
             "Next": "FanOutTests"
         },
         "FanOutTests": {
             "Type": "Map",
-            "ItemsPath": "$.Projects.RunSpecs",
+            "ItemsPath": "$.Functions.RunSpecs",
             "Parameters": {
                 "Project.$": "$$.Map.Item.Value.Project",
                 "Handler.$": "$$.Map.Item.Value.Handler",
                 "ZipFile.$": "$$.Map.Item.Value.ZipFile",
+                "ZipSize.$": "$$.Map.Item.Value.ZipSize",
                 "Runtime.$": "$$.Map.Item.Value.Runtime",
                 "Architecture.$": "$$.Map.Item.Value.Architecture",
                 "Payload.$": "$$.Map.Item.Value.Payload",
@@ -57,14 +58,24 @@
                             "Payload.$": "$"
                         },
                         "ResultSelector": {
-                            "Results.$": "$.Payload"
+                            "InitDurationMax.$": "$.Payload.InitDurationMax",
+                            "InitDurationMin.$": "$.Payload.InitDurationMin",
+                            "InitDurationAverage.$": "$.Payload.InitDurationAverage",
+                            "InitDurationStdDev.$": "$.Payload.InitDurationStdDev",
+                            "InitDurationMedian.$": "$.Payload.InitDurationMedian",
+                            "UsedDurationMax.$": "$.Payload.UsedDurationMax",
+                            "UsedDurationMin.$": "$.Payload.UsedDurationMin",
+                            "UsedDurationAverage.$": "$.Payload.UsedDurationAverage",
+                            "UsedDurationStdDev.$": "$.Payload.UsedDurationStdDev",
+                            "UsedDurationMedian.$": "$.Payload.UsedDurationMedian",
+                            "Details.$": "$.Payload.Details"
                         },
-                        "ResultPath": "$.Results",
+                        "ResultPath": "$.Measurements",
                         "End": true
                     }
                 }
             },
-            "ResultPath": "$.TestResults",
+            "ResultPath": "$.Functions",
             "Next": "BuildSuccess"
         },
         "BuildSuccess": {

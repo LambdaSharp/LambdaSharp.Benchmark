@@ -24,10 +24,6 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
-    public string? Project { get; set; }
-    public string? Runtime { get; set; }
-    public string? Architecture { get; set; }
-    public string? MemorySize { get; set; }
     public double InitDurationMax { get; set; }
     public double InitDurationMin { get; set; }
     public double InitDurationAverage { get; set; }
@@ -38,13 +34,13 @@ public class FunctionResponse {
     public double UsedDurationAverage { get; set; }
     public double UsedDurationStdDev { get; set; }
     public double UsedDurationMedian { get; set; }
-    public List<TestResult>? Results { get; set; }
+    public List<TestResult>? Details { get; set; }
 }
 
 public class TestResult {
 
     //--- Properties ---
-    public int Iteration { get; set; }
+    public int Run { get; set; }
     public bool Success { get; set; }
     public double InitDuration { get; set; }
     public double UsedDuration { get; set; }
@@ -204,10 +200,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.UsedDuration));
         return new() {
             Success = true,
-            Project = request.Project,
-            Runtime = request.Runtime,
-            Architecture = request.Architecture,
-            MemorySize = request.MemorySize.ToString(),
             InitDurationMin = results.Min(result => result.InitDuration),
             InitDurationMax = results.Max(result => result.InitDuration),
             InitDurationAverage = initDurationAverageAndStandardDeviation.Average,
@@ -218,7 +210,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             UsedDurationAverage = usedDurationAverageAndStandardDeviation.Average,
             UsedDurationStdDev = usedDurationAverageAndStandardDeviation.StandardDeviation,
             UsedDurationMedian = Median(results.Select(result => result.UsedDuration)),
-            Results = results
+            Details = results
         };
     }
 
@@ -261,7 +253,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             }
 
             // add result
-            result.Iteration = i;
+            result.Run = i;
             result.Success = string.IsNullOrEmpty(response.FunctionError);
             results.Add(result);
             LogInfo($"Result: Iteration={i}, InitDuration={result.InitDuration * 1000.0:0.###}ms, UsedDuration={result.UsedDuration * 1000.0:0.###}ms");
