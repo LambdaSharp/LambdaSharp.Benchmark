@@ -25,6 +25,7 @@ Items:
     Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
     Allow:
       - logs:DeleteLogGroup
+      - logs:DeleteLogStream
 
   - Package: Projects
     Files: ../../Projects
@@ -111,70 +112,54 @@ Items:
         Properties:
           Bucket: !Ref CodeBuild::ArtifactBucket
 
-  - Resource: RunStepFunction
-    Pragmas:
-      - no-type-validation # needed because `Definition` is defined as an empty object
-    Type: AWS::StepFunctions::StateMachine
-    Properties:
-      StateMachineType: STANDARD
-      RoleArn: !GetAtt StepFunctionRole.Arn
-      Definition:
-        StartAt: StartBuild
-        States:
-          StartBuild:
-            Type: Task
-            Resource: !Sub arn:${AWS::Partition}:states:::codebuild:startBuild.sync
-            Parameters:
-              ProjectName: !Ref CodeBuild::Project
-            Next: GetBuildResults
+  - Group: TestWorkflow
+    Items:
 
-          GetBuildResults:
-            Type: Choice
-            Choices:
-              - Variable: $.Build.BuildStatus
-                StringEquals: SUCCEEDED
-                Next: BuildSuccess
-            Default: BuildFailed
+      - Resource: StepFunction
+        Pragmas:
+          - no-type-validation # needed because `Definition` is defined as an empty object
+        Type: AWS::StepFunctions::StateMachine
+        Properties:
+          StateMachineType: STANDARD
+          RoleArn: !GetAtt TestWorkflow::StepFunctionRole.Arn
+          DefinitionString:
+            Fn::Sub: !Include StepFunction.json
 
-          BuildSuccess:
-            Type: Succeed
-
-          BuildFailed:
-            Type: Fail
-
-  - Resource: StepFunctionRole
-    Type: AWS::IAM::Role
-    Properties:
-      Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
-      AssumeRolePolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service: !Sub states.${AWS::Region}.amazonaws.com
-              Action: sts:AssumeRole
-      Policies:
-        - PolicyName: StepFunctionPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - codebuild:StartBuild
-                  - codebuild:StopBuild
-                  - codebuild:BatchGetBuilds
-                Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuild::Project}
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource: !GetAtt MeasureFunction.Arn
-              - Effect: Allow
-                Action:
-                  - events:PutTargets
-                  - events:PutRule
-                  - events:DescribeRule
-                Resource:
-                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+      - Resource: StepFunctionRole
+        Type: AWS::IAM::Role
+        Properties:
+          Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
+          AssumeRolePolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: !Sub states.${AWS::Region}.amazonaws.com
+                  Action: sts:AssumeRole
+          Policies:
+            - PolicyName: StepFunctionPolicy
+              PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      - codebuild:StartBuild
+                      - codebuild:StopBuild
+                      - codebuild:BatchGetBuilds
+                    Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuild::Project}
+                  - Effect: Allow
+                    Action:
+                      - lambda:InvokeFunction
+                    Resource:
+                      - !GetAtt ListArtifactsFunction.Arn
+                      - !GetAtt MeasureFunction.Arn
+                  - Effect: Allow
+                    Action:
+                      - events:PutTargets
+                      - events:PutRule
+                      - events:DescribeRule
+                    Resource:
+                      - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
 
   - Function: ListArtifactsFunction
     Memory: 1769

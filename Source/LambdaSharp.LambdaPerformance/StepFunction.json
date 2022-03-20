@@ -1,0 +1,77 @@
+{
+    "StartAt": "StartBuild",
+    "States": {
+        "StartBuild": {
+            "Type": "Task",
+            "Resource": "arn:${AWS::Partition}:states:::codebuild:startBuild.sync",
+            "Parameters": {
+                "ProjectName": "CodeBuild::Project"
+            },
+            "Next": "CheckBuildOutcome"
+        },
+        "CheckBuildOutcome": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.Build.BuildStatus",
+                    "StringEquals": "SUCCEEDED",
+                    "Next": "GetListOfArtifacts"
+                }
+            ],
+            "Default": "BuildFailed"
+        },
+        "GetListOfArtifacts": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "${ListArtifactsFunction}",
+                "Payload": { }
+            },
+            "ResultSelector": {
+                "RunSpecs.$": "$.Payload.RunSpecs"
+            },
+            "ResultPath": "$.Projects",
+            "Next": "FanOutTests"
+        },
+        "FanOutTests": {
+            "Type": "Map",
+            "ItemsPath": "$.Projects.RunSpecs",
+            "Parameters": {
+                "Project.$": "$$.Map.Item.Value.Project",
+                "Handler.$": "$$.Map.Item.Value.Handler",
+                "ZipFile.$": "$$.Map.Item.Value.ZipFile",
+                "Runtime.$": "$$.Map.Item.Value.Runtime",
+                "Architecture.$": "$$.Map.Item.Value.Architecture",
+                "Payload.$": "$$.Map.Item.Value.Payload",
+                "MemorySize": 256,
+                "Runs.$": "$.Runs"
+            },
+            "Iterator": {
+                "StartAt": "RunTest",
+                "States": {
+                    "RunTest": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${MeasureFunction}",
+                            "Payload.$": "$"
+                        },
+                        "ResultSelector": {
+                            "Results.$": "$.Payload"
+                        },
+                        "ResultPath": "$.Results",
+                        "End": true
+                    }
+                }
+            },
+            "ResultPath": "$.TestResults",
+            "Next": "BuildSuccess"
+        },
+        "BuildSuccess": {
+            "Type": "Succeed"
+        },
+        "BuildFailed": {
+            "Type": "Fail"
+        }
+    }
+}

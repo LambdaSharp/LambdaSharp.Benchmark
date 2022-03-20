@@ -14,6 +14,7 @@ public class FunctionResponse {
 public class RunSpec {
 
     //--- Properties ---
+    public string? Project { get; set; }
     public string? Payload { get; set; }
     public string? Handler { get; set; }
     public string? Runtime { get; set; }

@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 public class FunctionRequest {
 
     //--- Properties ---
+    public string? Project { get; set; }
     public string? Handler { get; set; }
     public string? ZipFile { get; set; }
     public string? Runtime { get; set; }
@@ -23,6 +24,10 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
+    public string? Project { get; set; }
+    public string? Runtime { get; set; }
+    public string? Architecture { get; set; }
+    public string? MemorySize { get; set; }
     public double InitDurationMax { get; set; }
     public double InitDurationMin { get; set; }
     public double InitDurationAverage { get; set; }
@@ -168,7 +173,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         } finally {
 
             // wait to ensure log groups have been created
-            await Task.Delay(TimeSpan.FromSeconds(3));
+            await Task.Delay(TimeSpan.FromSeconds(5));
 
             // delete Lambda function
             try {
@@ -199,7 +204,10 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.UsedDuration));
         return new() {
             Success = true,
-            Results = results,
+            Project = request.Project,
+            Runtime = request.Runtime,
+            Architecture = request.Architecture,
+            MemorySize = request.MemorySize.ToString(),
             InitDurationMin = results.Min(result => result.InitDuration),
             InitDurationMax = results.Max(result => result.InitDuration),
             InitDurationAverage = initDurationAverageAndStandardDeviation.Average,
@@ -209,7 +217,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             UsedDurationMax = results.Max(result => result.UsedDuration),
             UsedDurationAverage = usedDurationAverageAndStandardDeviation.Average,
             UsedDurationStdDev = usedDurationAverageAndStandardDeviation.StandardDeviation,
-            UsedDurationMedian = Median(results.Select(result => result.UsedDuration))
+            UsedDurationMedian = Median(results.Select(result => result.UsedDuration)),
+            Results = results
         };
     }
 

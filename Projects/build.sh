@@ -147,7 +147,7 @@ function build_function() {
 
             # copy JSON file and add runtime/architecture details
             local RUNSPEC_OUTPUT="$PUBLISH_FOLDER/$FUNCTION_LABEL.json"
-            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Runtime\":\"$2\",\"Architecture\":\"$3\"}" > "$RUNSPEC_OUTPUT"
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$2\",\"Architecture\":\"$3\"}" > "$RUNSPEC_OUTPUT"
         else
 
             # show build output and delete empty folder
