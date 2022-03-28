@@ -1,14 +1,27 @@
 {
-    "StartAt": "StartBuild",
+    "StartAt": "ClearBucket",
     "States": {
+        "ClearBucket": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "${ClearBucketFunction}",
+                "Payload": { }
+            },
+            "ResultSelector": { },
+            "ResultPath": "$.ClearBucket",
+            "Next": "StartBuild"
+        },
+
         "StartBuild": {
             "Type": "Task",
             "Resource": "arn:${AWS::Partition}:states:::codebuild:startBuild.sync",
             "Parameters": {
-                "ProjectName": "CodeBuild::Project"
+                "ProjectName": "${CodeBuild::Project}"
             },
             "Next": "CheckBuildOutcome"
         },
+
         "CheckBuildOutcome": {
             "Type": "Choice",
             "Choices": [
@@ -20,6 +33,7 @@
             ],
             "Default": "BuildFailed"
         },
+
         "GetListOfArtifacts": {
             "Type": "Task",
             "Resource": "arn:aws:states:::lambda:invoke",
@@ -33,6 +47,7 @@
             "ResultPath": "$.Functions",
             "Next": "FanOutTests"
         },
+
         "FanOutTests": {
             "Type": "Map",
             "ItemsPath": "$.Functions.RunSpecs",
@@ -78,11 +93,13 @@
             "ResultPath": "$.Functions",
             "Next": "BuildSuccess"
         },
-        "BuildSuccess": {
-            "Type": "Succeed"
-        },
+
         "BuildFailed": {
             "Type": "Fail"
+        },
+
+        "BuildSuccess": {
+            "Type": "Succeed"
         }
     }
 }

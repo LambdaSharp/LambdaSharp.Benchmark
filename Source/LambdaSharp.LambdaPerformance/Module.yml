@@ -101,11 +101,13 @@ Items:
                     Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*
 
       - Resource: ArtifactBucket
-        Scope: MeasureFunction, ListArtifactsFunction
+        Scope: MeasureFunction, ListArtifactsFunction, ClearBucketFunction
         Type: AWS::S3::Bucket
         Allow:
           - s3:ListBucket
           - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
 
       - Resource: EmptyArtifactBucket
         Type: LambdaSharp::S3::EmptyBucket
@@ -151,6 +153,7 @@ Items:
                     Action:
                       - lambda:InvokeFunction
                     Resource:
+                      - !GetAtt ClearBucketFunction.Arn
                       - !GetAtt ListArtifactsFunction.Arn
                       - !GetAtt MeasureFunction.Arn
                   - Effect: Allow
@@ -162,5 +165,9 @@ Items:
                       - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
 
   - Function: ListArtifactsFunction
+    Memory: 1769
+    Timeout: 30
+
+  - Function: ClearBucketFunction
     Memory: 1769
     Timeout: 30
