@@ -218,7 +218,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         };
 
         // write measuremnts to S3 bucket
-        var measurementFile = Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, "") + "-measurement", ".json");
+        var measurementFile = Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + "-measurement", ".json");
+        LogInfo($"Writing result file: {measurementFile}");
         await S3Client.PutObjectAsync(new() {
             BucketName = _buildBucketName,
             Key = measurementFile,
