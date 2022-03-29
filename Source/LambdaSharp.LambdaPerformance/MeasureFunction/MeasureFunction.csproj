@@ -10,9 +10,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="ArgumentAssert" Version="1.0.0"/>
     <PackageReference Include="AWSSDK.Lambda" Version="3.7.10"/>
     <PackageReference Include="AWSSDK.CloudWatchLogs" Version="3.7.2.29"/>
-    <PackageReference Include="ArgumentAssert" Version="1.0.0"/>
+    <PackageReference Include="AWSSDK.S3" Version="3.7.8.10" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Condition="'$(LAMBDASHARP)'==''" Include="LambdaSharp" Version="0.8.4.*"/>

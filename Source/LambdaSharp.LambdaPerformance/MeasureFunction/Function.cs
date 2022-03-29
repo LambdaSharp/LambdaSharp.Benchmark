@@ -2,6 +2,7 @@ namespace LambdaSharp.LambdaPerformance.DeployFunction;
 
 using Amazon.Lambda;
 using Amazon.CloudWatchLogs;
+using Amazon.S3;
 using LambdaSharp;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -55,6 +56,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     //--- Class Fields ---
     private static Random _random = new();
     private static Regex _lambdaReportPattern = new(@"REPORT RequestId: (?<RequestId>[\da-f\-]+)\s*Duration: (?<UsedDuration>[\d\.]+) ms\s*Billed Duration: (?<BilledDuration>[\d\.]+) ms\s*Memory Size: (?<MaxMemory>[\d\.]+) MB\s*Max Memory Used: (?<UsedMemory>[\d\.]+) MB\s*(Init Duration: (?<InitDuration>[\d\.]+) ms)?");
+    private IAmazonS3? _s3Client;
 
     //--- Class Methods ---
     private static string RandomString(int length)
@@ -90,6 +92,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private IAmazonCloudWatchLogs LogsClient => _logsClient ?? throw new InvalidOperationException();
     private string AwsAccountId => CurrentContext.InvokedFunctionArn.Split(':')[4];
     private string BuildBucketName => _buildBucketName ?? throw new InvalidOperationException();
+    private IAmazonS3 S3Client => _s3Client ?? throw new InvalidOperationException();
 
     //--- Methods ---
     public override async Task InitializeAsync(LambdaConfig config) {
@@ -100,6 +103,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         // initialize clients
         _lambdaClient = new AmazonLambdaClient();
         _logsClient = new AmazonCloudWatchLogsClient();
+        _s3Client = new AmazonS3Client();
     }
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
@@ -195,10 +199,10 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             }
         }
 
-        // return final response
+        // create result file
         var initDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.InitDuration));
         var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.UsedDuration));
-        return new() {
+        FunctionResponse response = new() {
             Success = true,
             InitDurationMin = results.Min(result => result.InitDuration),
             InitDurationMax = results.Max(result => result.InitDuration),
@@ -212,6 +216,15 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             UsedDurationMedian = Median(results.Select(result => result.UsedDuration)),
             Details = results
         };
+
+        // write measuremnts to S3 bucket
+        var measurementFile = Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, "") + "-measurement", ".json");
+        await S3Client.PutObjectAsync(new() {
+            BucketName = _buildBucketName,
+            Key = measurementFile,
+            ContentBody = LambdaSerializer.Serialize(response)
+        });
+        return response;
     }
 
     private async Task<List<TestResult>> PerformanceTestAsync(string functionName, string payload, int runs) {
