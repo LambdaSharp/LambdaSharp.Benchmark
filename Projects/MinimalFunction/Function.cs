@@ -7,10 +7,9 @@ namespace LambdaPerformance.MinimalFunction {
     public sealed class Function {
 
         //--- Methods ---
-        public async Task<Stream> ProcessMessageStreamAsync(Stream request) {
-            // var responseStream = new MemoryStream();
-            // responseStream.Write(Encoding.UTF8.GetBytes("Hello World!"));
-            // responseStream.Position = 0;
+        public async Task<Stream> ProcessAsync(Stream request) {
+
+            // it doesn't get more minimal than this!
             return Stream.Null;
         }
     }
