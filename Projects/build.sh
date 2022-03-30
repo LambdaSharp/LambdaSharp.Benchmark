@@ -148,7 +148,7 @@ function build_function() {
 
             # copy JSON file and add runtime/architecture details
             local RUNSPEC_OUTPUT="$PUBLISH_FOLDER/$FUNCTION_LABEL.json"
-            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$2\",\"Architecture\":\"$3\",\"ZipSize\": $ZIP_SIZE}" > "$RUNSPEC_OUTPUT"
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$2\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\"}" > "$RUNSPEC_OUTPUT"
         else
 
             # show build output and delete empty folder

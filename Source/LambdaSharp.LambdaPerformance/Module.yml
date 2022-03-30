@@ -50,7 +50,7 @@ Items:
             Location: !Sub ${Deployment::BucketName}/${Projects}
 
       - Variable: ProjectName
-        Scope: ListArtifactsFunction
+        Scope: ListArtifactsFunction, CombineMeasurementsFunction
         Value: !Ref CodeBuild::Project
 
       - Resource: Role
@@ -101,7 +101,7 @@ Items:
                     Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*
 
       - Resource: ArtifactBucket
-        Scope: MeasureFunction, ListArtifactsFunction, ClearBucketFunction
+        Scope: MeasureFunction, ListArtifactsFunction, ClearBucketFunction, CombineMeasurementsFunction
         Type: AWS::S3::Bucket
         Allow:
           - s3:ListBucket
@@ -156,6 +156,7 @@ Items:
                       - !GetAtt ClearBucketFunction.Arn
                       - !GetAtt ListArtifactsFunction.Arn
                       - !GetAtt MeasureFunction.Arn
+                      - !GetAtt CombineMeasurementsFunction.Arn
                   - Effect: Allow
                     Action:
                       - events:PutTargets
@@ -171,3 +172,7 @@ Items:
   - Function: ClearBucketFunction
     Memory: 1769
     Timeout: 30
+
+  - Function: CombineMeasurementsFunction
+    Memory: 1769
+    Timeout: 300

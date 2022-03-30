@@ -15,6 +15,8 @@ public class FunctionRequest {
     public string? ZipFile { get; set; }
     public string? Runtime { get; set; }
     public string? Architecture { get; set; }
+    public string? Tiered { get; set; }
+    public string? Ready2Run { get; set; }
     public int MemorySize { get; set; }
     public int Runs { get; set; }
     public string? Payload { get; set; }
@@ -25,6 +27,17 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
+}
+
+public class TestSummary {
+
+    //--- Properties ---
+    public string? Project { get; set; }
+    public string? Runtime { get; set; }
+    public string? Architecture { get; set; }
+    public int MemorySize { get; set; }
+    public string? Tiered { get; set; }
+    public string? Ready2Run { get; set; }
     public double InitDurationMax { get; set; }
     public double InitDurationMin { get; set; }
     public double InitDurationAverage { get; set; }
@@ -35,16 +48,22 @@ public class FunctionResponse {
     public double UsedDurationAverage { get; set; }
     public double UsedDurationStdDev { get; set; }
     public double UsedDurationMedian { get; set; }
-    public List<TestResult>? Details { get; set; }
+    public double TotalDurationMax { get; set; }
+    public double TotalDurationMin { get; set; }
+    public double TotalDurationAverage { get; set; }
+    public double TotalDurationStdDev { get; set; }
+    public double TotalDurationMedian { get; set; }
+    public List<TestRunResult>? Details { get; set; }
 }
 
-public class TestResult {
+public class TestRunResult {
 
     //--- Properties ---
     public int Run { get; set; }
     public bool Success { get; set; }
     public double InitDuration { get; set; }
     public double UsedDuration { get; set; }
+    public double TotalDuration { get; set; }
 }
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
@@ -127,7 +146,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         // create Lambda function
         var functionNamePrefix = $"{Info.ModuleId}-Test-";
         var functionName = functionNamePrefix + RandomString(MAX_LAMBDA_NAME_LENGTH - functionNamePrefix.Length);
-        List<TestResult>? results;
+        List<TestRunResult>? runResults;
         try {
 
             // create Lambda function
@@ -152,7 +171,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
             // conduct cold-start performance expirement
             try {
-                results = await PerformanceTestAsync(functionName, request.Payload, request.Runs);
+                runResults = await PerformanceTestAsync(functionName, request.Payload, request.Runs);
             } catch(Exception e) {
                 LogErrorAsInfo(e, "Lambda invocation failed; aborting peformance check");
 
@@ -200,36 +219,68 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
 
         // create result file
-        var initDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.InitDuration));
-        var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(results.Select(result => result.UsedDuration));
-        FunctionResponse response = new() {
-            Success = true,
-            InitDurationMin = results.Min(result => result.InitDuration),
-            InitDurationMax = results.Max(result => result.InitDuration),
+        var initDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.InitDuration));
+        var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.UsedDuration));
+        var totalDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.TotalDuration));
+        TestSummary summary = new() {
+            Project = request.Project,
+            Runtime = request.Runtime,
+            Architecture = request.Architecture,
+            MemorySize = request.MemorySize,
+            Tiered = request.Tiered,
+            Ready2Run = request.Ready2Run,
+            InitDurationMin = runResults.Min(result => result.InitDuration),
+            InitDurationMax = runResults.Max(result => result.InitDuration),
             InitDurationAverage = initDurationAverageAndStandardDeviation.Average,
             InitDurationStdDev = initDurationAverageAndStandardDeviation.StandardDeviation,
-            InitDurationMedian = Median(results.Select(result => result.InitDuration)),
-            UsedDurationMin = results.Min(result => result.UsedDuration),
-            UsedDurationMax = results.Max(result => result.UsedDuration),
+            InitDurationMedian = Median(runResults.Select(result => result.InitDuration)),
+            UsedDurationMin = runResults.Min(result => result.UsedDuration),
+            UsedDurationMax = runResults.Max(result => result.UsedDuration),
             UsedDurationAverage = usedDurationAverageAndStandardDeviation.Average,
             UsedDurationStdDev = usedDurationAverageAndStandardDeviation.StandardDeviation,
-            UsedDurationMedian = Median(results.Select(result => result.UsedDuration)),
-            Details = results
+            UsedDurationMedian = Median(runResults.Select(result => result.UsedDuration)),
+
+            TotalDurationMin = runResults.Min(result => result.TotalDuration),
+            TotalDurationMax = runResults.Max(result => result.TotalDuration),
+            TotalDurationAverage = totalDurationAverageAndStandardDeviation.Average,
+            TotalDurationStdDev = totalDurationAverageAndStandardDeviation.StandardDeviation,
+            TotalDurationMedian = Median(runResults.Select(result => result.TotalDuration)),
+
+            Details = runResults
         };
 
-        // write measuremnts to S3 bucket
-        var measurementFile = Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + "-measurement", ".json");
-        LogInfo($"Writing result file: {measurementFile}");
-        await S3Client.PutObjectAsync(new() {
-            BucketName = _buildBucketName,
-            Key = measurementFile,
-            ContentBody = LambdaSerializer.Serialize(response)
-        });
-        return response;
+        // write measuremnts JSON to S3 bucket
+        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + "-measurement", ".json"), LambdaSerializer.Serialize(summary));
+
+        // write measuremnts CSV to S3 bucket
+        StringBuilder csv = new();
+        AppendCsvLine(nameof(TestSummary.Project), nameof(TestSummary.Runtime), nameof(TestSummary.Architecture), nameof(TestSummary.Tiered), nameof(TestSummary.Ready2Run), nameof(TestSummary.MemorySize), nameof(TestRunResult.UsedDuration), nameof(TestRunResult.InitDuration), nameof(TestRunResult.TotalDuration));
+        foreach(var runResult in runResults) {
+            AppendCsvLine(summary.Project, summary.Runtime, summary.Architecture, summary.Tiered, summary.Ready2Run, summary.MemorySize.ToString(), runResult.UsedDuration.ToString(), runResult.InitDuration.ToString(), runResult.TotalDuration.ToString());
+        }
+        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + "-measurement", ".csv"), csv.ToString());
+
+        // return successfully
+        return new() {
+            Success = true
+        };
+
+        // local functions
+        void AppendCsvLine(string? project, string? runtime, string? architecture, string? tiered, string? ready2run, string? memory, string? usedDuration, string? initDuration, string? totalDuration)
+            => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{memory},{usedDuration},{initDuration},{totalDuration}");
+
+        async Task WriteToS3(string key, string contents) {
+            LogInfo($"Writing measurement file to S3: {key}");
+            await S3Client.PutObjectAsync(new() {
+                BucketName = _buildBucketName,
+                Key = key,
+                ContentBody = contents
+            });
+        }
     }
 
-    private async Task<List<TestResult>> PerformanceTestAsync(string functionName, string payload, int runs) {
-        var results = new List<TestResult>();
+    private async Task<List<TestRunResult>> PerformanceTestAsync(string functionName, string payload, int runs) {
+        var results = new List<TestRunResult>();
 
         // wait for Lambda creation to complete
         await WaitForFunctionToBeReady(functionName);
@@ -303,7 +354,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         } while(true);
     }
 
-    private TestResult ParseLambdaReportFromLogResult(string logResult) {
+    private TestRunResult ParseLambdaReportFromLogResult(string logResult) {
 
         // Sample Log Result: REPORT RequestId: 7234b561-1e51-45f4-a031-a71b9836f038	Duration: 327.16 ms	Billed Duration: 328 ms	Memory Size: 256 MB	Max Memory Used: 61 MB	Init Duration: 243.54 ms
 
@@ -316,12 +367,14 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 : 0.0;
             return new() {
                 UsedDuration = usedDuration,
-                InitDuration = initDuration
+                InitDuration = initDuration,
+                TotalDuration = usedDuration + initDuration
             };
         }
         return new() {
             UsedDuration = 0.0,
-            InitDuration = 0.0
+            InitDuration = 0.0,
+            TotalDuration = 0.0
         };
     }
 }

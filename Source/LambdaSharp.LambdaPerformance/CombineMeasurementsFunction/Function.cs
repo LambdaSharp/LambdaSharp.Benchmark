@@ -1,29 +1,12 @@
-namespace LambdaSharp.LambdaPerformance.ListArtifactsFunction;
+namespace LambdaSharp.LambdaPerformance.CombineMeasurementsFunction;
 
+using System.Text;
 using Amazon.S3;
 using LambdaSharp;
 
 public class FunctionRequest { }
 
-public class FunctionResponse {
-
-    //--- Properties ---
-    public List<RunSpec> RunSpecs { get; set; } = new();
-}
-
-public class RunSpec {
-
-    //--- Properties ---
-    public string? Project { get; set; }
-    public string? Payload { get; set; }
-    public string? Handler { get; set; }
-    public string? Runtime { get; set; }
-    public string? Architecture { get; set; }
-    public string? ZipFile { get; set; }
-    public long ZipSize { get; set; }
-    public string? Tiered { get; set; }
-    public string? Ready2Run { get; set; }
-}
+public class FunctionResponse { }
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
 
@@ -37,7 +20,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     //--- Properties ---
     private string BuildBucketName => _buildBucketName ?? throw new InvalidOperationException();
-    private string CodeBuildProjectName => _codeBuildProjectName ?? throw new InvalidOperationException();
     private IAmazonS3 S3Client => _s3Client ?? throw new InvalidOperationException();
 
     //--- Methods ---
@@ -61,20 +43,29 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         });
 
         // read all run-spec JSON file and augment them with the zip file location
-        var response = new FunctionResponse();
-        foreach(var runSpecObject in listObjectsResponse.S3Objects.Where(s3Object => s3Object.Key.EndsWith(".json", StringComparison.Ordinal))) {
+        StringBuilder combinedCsv = new();
+        foreach(var runSpecObject in listObjectsResponse.S3Objects.Where(s3Object => s3Object.Key.EndsWith(".csv", StringComparison.Ordinal))) {
 
             // read run-spec from S3 bucket
-            var getRunSpecObjectResponse = await S3Client.GetObjectAsync(new() {
+            var getCsvObjectResponse = await S3Client.GetObjectAsync(new() {
                 BucketName = BuildBucketName,
                 Key = runSpecObject.Key
             });
 
             // add ZipFile location
-            var runSpec = LambdaSerializer.Deserialize<RunSpec>(getRunSpecObjectResponse.ResponseStream);
-            runSpec.ZipFile = Path.ChangeExtension(runSpecObject.Key, ".zip");
-            response.RunSpecs.Add(runSpec);
+            using StreamReader reader = new(getCsvObjectResponse.ResponseStream);
+            var csv = await reader.ReadToEndAsync();
+            if(combinedCsv.Length > 0) {
+                combinedCsv.Append(string.Join('\n', csv.Split('\n').Skip(1)));
+            } else {
+                combinedCsv.Append(csv);
+            }
         }
-        return response;
+        await S3Client.PutObjectAsync(new() {
+            BucketName = _buildBucketName,
+            Key = $"{_codeBuildProjectName}/combined-measurements.csv",
+            ContentBody = combinedCsv.ToString()
+        });
+        return new();
     }
 }
