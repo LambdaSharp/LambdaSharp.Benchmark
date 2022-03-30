@@ -18,7 +18,6 @@ public class FunctionRequest {
     public string? Tiered { get; set; }
     public string? Ready2Run { get; set; }
     public int MemorySize { get; set; }
-    public int Runs { get; set; }
     public string? Payload { get; set; }
 }
 
@@ -29,7 +28,7 @@ public class FunctionResponse {
     public string? Message { get; set; }
 }
 
-public class TestSummary {
+public class MeasurementSummary {
 
     //--- Properties ---
     public string? Project { get; set; }
@@ -53,10 +52,10 @@ public class TestSummary {
     public double TotalDurationAverage { get; set; }
     public double TotalDurationStdDev { get; set; }
     public double TotalDurationMedian { get; set; }
-    public List<TestRunResult>? Details { get; set; }
+    public List<MeasurementSample>? Samples { get; set; }
 }
 
-public class TestRunResult {
+public class MeasurementSample {
 
     //--- Properties ---
     public int Run { get; set; }
@@ -107,6 +106,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public Function() : base(new LambdaSharp.Serialization.LambdaSystemTextJsonSerializer()) { }
 
     //--- Properties ---
+    public int SamplesCount { get; set; }
     private IAmazonLambda LambdaClient => _lambdaClient ?? throw new InvalidOperationException();
     private IAmazonCloudWatchLogs LogsClient => _logsClient ?? throw new InvalidOperationException();
     private string AwsAccountId => CurrentContext.InvokedFunctionArn.Split(':')[4];
@@ -118,6 +118,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // read configuration settings
         _buildBucketName = config.ReadS3BucketName("CodeBuild::ArtifactBucket");
+        SamplesCount = int.Parse(config.ReadText("SamplesCount"));
 
         // initialize clients
         _lambdaClient = new AmazonLambdaClient();
@@ -129,12 +130,12 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // validate request
         try {
+            ArgumentAssertException.Assert(request.Project is not null);
             ArgumentAssertException.Assert(request.Handler is not null);
             ArgumentAssertException.Assert(request.ZipFile is not null);
             ArgumentAssertException.Assert(request.Runtime is not null);
             ArgumentAssertException.Assert(request.Architecture is not null);
             ArgumentAssertException.Assert(request.MemorySize is >= 128 and <= 1769);
-            ArgumentAssertException.Assert(request.Runs is >= 1 and <= 100);
             ArgumentAssertException.Assert(request.Payload is not null);
         } catch(ArgumentAssertException e) {
             return new() {
@@ -146,7 +147,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         // create Lambda function
         var functionNamePrefix = $"{Info.ModuleId}-Test-";
         var functionName = functionNamePrefix + RandomString(MAX_LAMBDA_NAME_LENGTH - functionNamePrefix.Length);
-        List<TestRunResult>? runResults;
+        List<MeasurementSample>? runResults;
         try {
 
             // create Lambda function
@@ -160,7 +161,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 PackageType = PackageType.Zip,
                 MemorySize = request.MemorySize,
                 FunctionName = functionName,
-                Description = $"Testing {request.ZipFile} (Memory: {request.MemorySize}, Arch: {request.Architecture}, Runtime: {request.Runtime})",
+                Description = $"Measuring {request.ZipFile} (Memory: {request.MemorySize}, Arch: {request.Architecture}, Runtime: {request.Runtime}, Tiered: {request.Tiered}, Ready2Run: {request.Ready2Run})",
                 Code = new() {
                     S3Bucket = BuildBucketName,
                     S3Key = request.ZipFile
@@ -169,11 +170,11 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 Role = $"arn:aws:iam::{AwsAccountId}:role/LambdaDefaultRole"
             });
 
-            // conduct cold-start performance expirement
+            // conduct cold-start performance measurement
             try {
-                runResults = await PerformanceTestAsync(functionName, request.Payload, request.Runs);
+                runResults = await MeasureAsync(functionName, request.Payload, SamplesCount);
             } catch(Exception e) {
-                LogErrorAsInfo(e, "Lambda invocation failed; aborting peformance check");
+                LogErrorAsInfo(e, "Lambda invocation failed; aborting measurement check");
 
                 // return error response
                 return new() {
@@ -182,7 +183,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 };
             }
         } catch(Exception e) {
-            LogErrorAsInfo(e, "Lambda creation failed; aborting peformance check");
+            LogErrorAsInfo(e, "Lambda creation failed; aborting measurement check");
 
             // return error response
             return new() {
@@ -222,7 +223,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var initDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.InitDuration));
         var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.UsedDuration));
         var totalDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.TotalDuration));
-        TestSummary summary = new() {
+        MeasurementSummary summary = new() {
             Project = request.Project,
             Runtime = request.Runtime,
             Architecture = request.Architecture,
@@ -239,26 +240,24 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             UsedDurationAverage = usedDurationAverageAndStandardDeviation.Average,
             UsedDurationStdDev = usedDurationAverageAndStandardDeviation.StandardDeviation,
             UsedDurationMedian = Median(runResults.Select(result => result.UsedDuration)),
-
             TotalDurationMin = runResults.Min(result => result.TotalDuration),
             TotalDurationMax = runResults.Max(result => result.TotalDuration),
             TotalDurationAverage = totalDurationAverageAndStandardDeviation.Average,
             TotalDurationStdDev = totalDurationAverageAndStandardDeviation.StandardDeviation,
             TotalDurationMedian = Median(runResults.Select(result => result.TotalDuration)),
-
-            Details = runResults
+            Samples = runResults
         };
 
-        // write measuremnts JSON to S3 bucket
-        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + "-measurement", ".json"), LambdaSerializer.Serialize(summary));
+        // write measurements JSON to S3 bucket
+        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + $"-{request.MemorySize}-measurement", ".json"), LambdaSerializer.Serialize(summary));
 
-        // write measuremnts CSV to S3 bucket
+        // write measurements CSV to S3 bucket
         StringBuilder csv = new();
-        AppendCsvLine(nameof(TestSummary.Project), nameof(TestSummary.Runtime), nameof(TestSummary.Architecture), nameof(TestSummary.Tiered), nameof(TestSummary.Ready2Run), nameof(TestSummary.MemorySize), nameof(TestRunResult.UsedDuration), nameof(TestRunResult.InitDuration), nameof(TestRunResult.TotalDuration));
+        AppendCsvLine(nameof(MeasurementSummary.Project), nameof(MeasurementSummary.Runtime), nameof(MeasurementSummary.Architecture), nameof(MeasurementSummary.Tiered), nameof(MeasurementSummary.Ready2Run), nameof(MeasurementSummary.MemorySize), nameof(MeasurementSample.UsedDuration), nameof(MeasurementSample.InitDuration), nameof(MeasurementSample.TotalDuration));
         foreach(var runResult in runResults) {
             AppendCsvLine(summary.Project, summary.Runtime, summary.Architecture, summary.Tiered, summary.Ready2Run, summary.MemorySize.ToString(), runResult.UsedDuration.ToString(), runResult.InitDuration.ToString(), runResult.TotalDuration.ToString());
         }
-        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + "-measurement", ".csv"), csv.ToString());
+        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + $"-{request.MemorySize}-measurement", ".csv"), csv.ToString());
 
         // return successfully
         return new() {
@@ -279,8 +278,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
     }
 
-    private async Task<List<TestRunResult>> PerformanceTestAsync(string functionName, string payload, int runs) {
-        var results = new List<TestRunResult>();
+    private async Task<List<MeasurementSample>> MeasureAsync(string functionName, string payload, int runs) {
+        var results = new List<MeasurementSample>();
 
         // wait for Lambda creation to complete
         await WaitForFunctionToBeReady(functionName);
@@ -354,7 +353,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         } while(true);
     }
 
-    private TestRunResult ParseLambdaReportFromLogResult(string logResult) {
+    private MeasurementSample ParseLambdaReportFromLogResult(string logResult) {
 
         // Sample Log Result: REPORT RequestId: 7234b561-1e51-45f4-a031-a71b9836f038	Duration: 327.16 ms	Billed Duration: 328 ms	Memory Size: 256 MB	Max Memory Used: 61 MB	Init Duration: 243.54 ms
 

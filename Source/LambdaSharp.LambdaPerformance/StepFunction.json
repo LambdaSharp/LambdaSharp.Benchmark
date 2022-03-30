@@ -55,6 +55,7 @@
         "FanOutTests": {
             "Type": "Map",
             "ItemsPath": "$.Functions.RunSpecs",
+            "MaxConcurrency": ${Parallelism},
             "Parameters": {
                 "Project.$": "$$.Map.Item.Value.Project",
                 "Handler.$": "$$.Map.Item.Value.Handler",
@@ -65,8 +66,7 @@
                 "Tiered.$": "$$.Map.Item.Value.Tiered",
                 "Ready2Run.$": "$$.Map.Item.Value.Ready2Run",
                 "Payload.$": "$$.Map.Item.Value.Payload",
-                "MemorySize": 256,
-                "Runs.$": "$.Runs"
+                "MemorySize.$": "$$.Map.Item.Value.MemorySize"
             },
             "Iterator": {
                 "StartAt": "RunTest",

@@ -3,6 +3,82 @@ Using:
   - Module: LambdaSharp.S3.IO:0.8@lambdasharp
 Items:
 
+  ###
+  # Parameters
+  ###
+
+  - Parameter: ProjectNames
+    Scope: ListArtifactsFunction
+    Section: Measurement Configuration
+    Label: List of projects to measure (leave blank to measure all projects)
+    Description: List of projects to measure (leave blank to measure all projects)
+    Default: ""
+
+  - Parameter: MemorySizes
+    Scope: ListArtifactsFunction
+    Section: Measurement Configuration
+    Label: List of memory sizes to measure
+    Description: List of memory sizes to measure
+    Default: 128,256,512,1024,1769
+
+  - Parameter: Runtimes
+    Scope: ListArtifactsFunction
+    Section: Measurement Configuration
+    Label: List of runtimes to measure
+    Description: List of runtimes to measure
+    Default: dotnetcore3.1,dotnet6
+
+  - Parameter: Architectures
+    Scope: ListArtifactsFunction
+    Section: Measurement Configuration
+    Label: List of architectures to measure
+    Description: List of architectures to measure
+    Default: arm64,x86_64
+
+  - Parameter: TieredOption
+    Scope: ListArtifactsFunction
+    Section: Measurement Configuration
+    Label: Use tiered compilation for measurement
+    Description: Use tiered compilation for measurement
+    AllowedValues:
+      - "no"
+      - "yes"
+      - both
+    Default: both
+
+  - Parameter: Ready2RunOption
+    Scope: ListArtifactsFunction
+    Section: Measurement Configuration
+    Label: Use ready2run for measurement
+    Description: Use ready2run for measurement
+    AllowedValues:
+      - "no"
+      - "yes"
+      - both
+    Default: both
+
+  - Parameter: SamplesCount
+    Scope: MeasureFunction
+    Section: Measurement Configuration
+    Label: Number of measurement samples to collect per project and configuration
+    Description: Number of measurement samples to collect per project and configuration
+    Type: Number
+    Default: 50
+    MinValue: 1
+    MaxValue: 100
+
+  - Parameter: Parallelism
+    Section: Measurement Configuration
+    Label: Number of simultaneous measurements to run
+    Type: Number
+    Default: 50
+    MinValue: 1
+    MaxValue: 1000
+
+  ###
+  # Resources
+  ###
+
   - Function: MeasureFunction
     Memory: 512
     Timeout: 900

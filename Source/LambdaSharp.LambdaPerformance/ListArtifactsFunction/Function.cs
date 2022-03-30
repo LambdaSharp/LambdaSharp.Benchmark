@@ -11,18 +11,23 @@ public class FunctionResponse {
     public List<RunSpec> RunSpecs { get; set; } = new();
 }
 
-public class RunSpec {
+public record RunSpec(
+    string? Project,
+    string? Payload,
+    string? Handler,
+    string? Runtime,
+    string? Architecture,
+    string? ZipFile,
+    long ZipSize,
+    string? Tiered,
+    string? Ready2Run,
+    int MemorySize
+);
 
-    //--- Properties ---
-    public string? Project { get; set; }
-    public string? Payload { get; set; }
-    public string? Handler { get; set; }
-    public string? Runtime { get; set; }
-    public string? Architecture { get; set; }
-    public string? ZipFile { get; set; }
-    public long ZipSize { get; set; }
-    public string? Tiered { get; set; }
-    public string? Ready2Run { get; set; }
+public enum YesNoBothOption {
+    No,
+    Yes,
+    Both
 }
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
@@ -31,6 +36,10 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private string? _buildBucketName;
     private string? _codeBuildProjectName;
     private IAmazonS3? _s3Client;
+    private string[]? _architectures;
+    private string[]? _runtimes;
+    private int[]? _memoryConfigurations;
+    private string[]? _projectNames;
 
     //--- Constructors ---
     public Function() : base(new LambdaSharp.Serialization.LambdaSystemTextJsonSerializer()) { }
@@ -39,6 +48,12 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private string BuildBucketName => _buildBucketName ?? throw new InvalidOperationException();
     private string CodeBuildProjectName => _codeBuildProjectName ?? throw new InvalidOperationException();
     private IAmazonS3 S3Client => _s3Client ?? throw new InvalidOperationException();
+    public IEnumerable<string> Architectures => _architectures ?? throw new InvalidOperationException();
+    public IEnumerable<int> MemorySizes => _memoryConfigurations ?? throw new InvalidOperationException();
+    public IEnumerable<string> ProjectNames => _projectNames ?? throw new InvalidOperationException();
+    public IEnumerable<string> Runtimes => _runtimes ?? throw new InvalidOperationException();
+    private YesNoBothOption TieredCompilation { get; set; }
+    private YesNoBothOption Ready2RunCompilation { get; set; }
 
     //--- Methods ---
     public override async Task InitializeAsync(LambdaConfig config) {
@@ -46,6 +61,12 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         // read configuration settings
         _buildBucketName = config.ReadS3BucketName("CodeBuild::ArtifactBucket");
         _codeBuildProjectName = config.ReadText("CodeBuild::ProjectName");
+        _architectures = config.ReadText("Architectures").Split(",", StringSplitOptions.RemoveEmptyEntries);
+        _runtimes = config.ReadText("Runtimes").Split(",", StringSplitOptions.RemoveEmptyEntries);
+        _memoryConfigurations = config.ReadText("MemorySizes").Split(",", StringSplitOptions.RemoveEmptyEntries).Select(value => int.Parse(value)).ToArray();
+        _projectNames = config.ReadText("ProjectNames").Split(",", StringSplitOptions.RemoveEmptyEntries);
+        TieredCompilation = Enum.Parse<YesNoBothOption>(config.ReadText("TieredOption"), ignoreCase: true);
+        Ready2RunCompilation = Enum.Parse<YesNoBothOption>(config.ReadText("Ready2RunOption"), ignoreCase: true);
 
         // initialize clients
         _s3Client = new AmazonS3Client();
@@ -54,13 +75,13 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
 
         // return list of all build artifacts
+        LogInfo($"Finding all run-specs at s3://{BuildBucketName}/{_codeBuildProjectName}/");
         var listObjectsResponse = await S3Client.ListObjectsV2Async(new() {
             BucketName = BuildBucketName,
             Prefix = $"{_codeBuildProjectName}/",
             Delimiter = "/"
         });
-
-        // read all run-spec JSON file and augment them with the zip file location
+        List<RunSpec> runSpecs = new();
         var response = new FunctionResponse();
         foreach(var runSpecObject in listObjectsResponse.S3Objects.Where(s3Object => s3Object.Key.EndsWith(".json", StringComparison.Ordinal))) {
 
@@ -69,12 +90,67 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 BucketName = BuildBucketName,
                 Key = runSpecObject.Key
             });
-
-            // add ZipFile location
-            var runSpec = LambdaSerializer.Deserialize<RunSpec>(getRunSpecObjectResponse.ResponseStream);
-            runSpec.ZipFile = Path.ChangeExtension(runSpecObject.Key, ".zip");
-            response.RunSpecs.Add(runSpec);
+            runSpecs.Add(LambdaSerializer.Deserialize<RunSpec>(getRunSpecObjectResponse.ResponseStream) with {
+                ZipFile = Path.ChangeExtension(runSpecObject.Key, ".zip")
+            });
         }
+        LogInfo($"Found {runSpecs.Count:N0} run-specs");
+
+        // read all run-spec JSON file and augment them with the zip file location
+        var projectDidNotMatch = 0;
+        var runtimeDidNotMatch = 0;
+        var architectureDidNotMatch = 0;
+        var tieredCompilationDidNotMatch = 0;
+        var ready2RunDidNotMatch = 0;
+        foreach(var runSpec in runSpecs) {
+
+            // check if requested project settings are part of the measurements configuration
+            if(ProjectNames.Any() && !ProjectNames.Contains(runSpec.Project)) {
+                ++projectDidNotMatch;
+
+                // skip this run-spec
+                continue;
+            }
+            if(!Runtimes.Contains(runSpec.Runtime)) {
+                ++runtimeDidNotMatch;
+
+                // skip this run-spec
+                continue;
+            }
+            if(!Architectures.Contains(runSpec.Architecture)) {
+                ++architectureDidNotMatch;
+
+                // skip this run-spec
+                continue;
+            }
+            if(
+                ((TieredCompilation == YesNoBothOption.Yes) && (runSpec.Tiered == "no"))
+                || ((TieredCompilation == YesNoBothOption.No) && (runSpec.Tiered == "yes"))
+            ) {
+                ++tieredCompilationDidNotMatch;
+
+                // skip this run-spec
+                continue;
+            }
+            if(
+                ((Ready2RunCompilation == YesNoBothOption.Yes) && (runSpec.Ready2Run == "no"))
+                || ((Ready2RunCompilation == YesNoBothOption.No) && (runSpec.Ready2Run == "yes"))
+            ) {
+                ++ready2RunDidNotMatch;
+
+                // skip this run-spec
+                continue;
+            }
+
+            // generate a run-spec for each memory configuration
+            foreach(var memorySize in MemorySizes) {
+                response.RunSpecs.Add(runSpec with {
+                    MemorySize = memorySize
+                });
+            }
+        }
+        LogInfo($"Discarded mismatches: ProjectName={projectDidNotMatch}, Runtime={runtimeDidNotMatch}, Architecture={architectureDidNotMatch}, TieredCompilation={tieredCompilationDidNotMatch}, Ready2Run={ready2RunDidNotMatch}");
+        LogInfo($"Generated {response.RunSpecs.Count:N0} run-specs for MemorySizes=[{string.Join(", ", MemorySizes.Select(memorySize => memorySize.ToString()))}]");
         return response;
     }
 }
