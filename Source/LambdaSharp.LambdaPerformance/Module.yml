@@ -104,6 +104,7 @@ Items:
       - logs:DeleteLogStream
 
   - Package: Projects
+    Build: bash -c "find ../../Projects -name obj -or -name bin | xargs rm -rf"
     Files: ../../Projects
 
   - Group: CodeBuild
