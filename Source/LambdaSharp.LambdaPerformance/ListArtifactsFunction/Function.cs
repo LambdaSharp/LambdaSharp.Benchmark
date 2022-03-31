@@ -2,27 +2,15 @@ namespace LambdaSharp.LambdaPerformance.ListArtifactsFunction;
 
 using Amazon.S3;
 using LambdaSharp;
+using LambdaSharp.LambdaPerformance.Common;
 
 public class FunctionRequest { }
 
 public class FunctionResponse {
 
     //--- Properties ---
-    public List<RunSpec> RunSpecs { get; set; } = new();
+    public List<string> RunSpecs { get; set; } = new();
 }
-
-public record RunSpec(
-    string? Project,
-    string? Payload,
-    string? Handler,
-    string? Runtime,
-    string? Architecture,
-    string? ZipFile,
-    long ZipSize,
-    string? Tiered,
-    string? Ready2Run,
-    int MemorySize
-);
 
 public enum YesNoBothOption {
     No,
@@ -144,9 +132,16 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
             // generate a run-spec for each memory configuration
             foreach(var memorySize in MemorySizes) {
-                response.RunSpecs.Add(runSpec with {
-                    MemorySize = memorySize
+                var runSpecFileName = Path.ChangeExtension(runSpec.ZipFile, extension: null) + $"-{memorySize}.json";
+                LogInfo($"Writing run-spec file to s3://{BuildBucketName}/{runSpecFileName}");
+                await S3Client.PutObjectAsync(new() {
+                    BucketName = BuildBucketName,
+                    Key = runSpecFileName,
+                    ContentBody = LambdaSerializer.Serialize(runSpec with {
+                        MemorySize = memorySize
+                    })
                 });
+                response.RunSpecs.Add(runSpecFileName);
             }
         }
         LogInfo($"Discarded mismatches: ProjectName={projectDidNotMatch}, Runtime={runtimeDidNotMatch}, Architecture={architectureDidNotMatch}, TieredCompilation={tieredCompilationDidNotMatch}, Ready2Run={ready2RunDidNotMatch}");

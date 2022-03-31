@@ -22,7 +22,7 @@
             "ResultSelector": {
                 "BuildStatus.$": "$.Build.BuildStatus"
             },
-            "ResultPath": "$.Build",
+            "ResultPath": "$.StartBuild",
             "Next": "CheckBuildOutcome"
         },
 
@@ -30,7 +30,7 @@
             "Type": "Choice",
             "Choices": [
                 {
-                    "Variable": "$.Build.BuildStatus",
+                    "Variable": "$.StartBuild.BuildStatus",
                     "StringEquals": "SUCCEEDED",
                     "Next": "GetListOfArtifacts"
                 }
@@ -48,25 +48,16 @@
             "ResultSelector": {
                 "RunSpecs.$": "$.Payload.RunSpecs"
             },
-            "ResultPath": "$.Functions",
+            "ResultPath": "$.GetListOfArtifacts",
             "Next": "FanOutTests"
         },
 
         "FanOutTests": {
             "Type": "Map",
-            "ItemsPath": "$.Functions.RunSpecs",
+            "ItemsPath": "$.GetListOfArtifacts.RunSpecs",
             "MaxConcurrency": ${Parallelism},
             "Parameters": {
-                "Project.$": "$$.Map.Item.Value.Project",
-                "Handler.$": "$$.Map.Item.Value.Handler",
-                "ZipFile.$": "$$.Map.Item.Value.ZipFile",
-                "ZipSize.$": "$$.Map.Item.Value.ZipSize",
-                "Runtime.$": "$$.Map.Item.Value.Runtime",
-                "Architecture.$": "$$.Map.Item.Value.Architecture",
-                "Tiered.$": "$$.Map.Item.Value.Tiered",
-                "Ready2Run.$": "$$.Map.Item.Value.Ready2Run",
-                "Payload.$": "$$.Map.Item.Value.Payload",
-                "MemorySize.$": "$$.Map.Item.Value.MemorySize"
+                "RunSpec.$": "$$.Map.Item.Value"
             },
             "Iterator": {
                 "StartAt": "RunTest",
@@ -81,7 +72,7 @@
                         "ResultSelector": {
                             "Success.$": "$.Payload.Success"
                         },
-                        "ResultPath": "$.Measurements",
+                        "ResultPath": "$.RunTest",
                         "End": true
                     }
                 }

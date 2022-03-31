@@ -6,19 +6,12 @@ using Amazon.S3;
 using LambdaSharp;
 using System.Text;
 using System.Text.RegularExpressions;
+using LambdaSharp.LambdaPerformance.Common;
 
 public class FunctionRequest {
 
     //--- Properties ---
-    public string? Project { get; set; }
-    public string? Handler { get; set; }
-    public string? ZipFile { get; set; }
-    public string? Runtime { get; set; }
-    public string? Architecture { get; set; }
-    public string? Tiered { get; set; }
-    public string? Ready2Run { get; set; }
-    public int MemorySize { get; set; }
-    public string? Payload { get; set; }
+    public string? RunSpec { get; set; }
 }
 
 public class FunctionResponse {
@@ -128,19 +121,35 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
 
-        // validate request
+        // validate run-spec
         try {
-            ArgumentAssertException.Assert(request.Project is not null);
-            ArgumentAssertException.Assert(request.Handler is not null);
-            ArgumentAssertException.Assert(request.ZipFile is not null);
-            ArgumentAssertException.Assert(request.Runtime is not null);
-            ArgumentAssertException.Assert(request.Architecture is not null);
-            ArgumentAssertException.Assert(request.MemorySize is >= 128 and <= 1769);
-            ArgumentAssertException.Assert(request.Payload is not null);
+            ArgumentAssertException.Assert(request.RunSpec is not null);
         } catch(ArgumentAssertException e) {
             return new() {
                 Success = false,
                 Message = $"Request validation failed: {e.Message.Replace("request.", "")}"
+            };
+        }
+
+        // load run-spec from S3
+        LogInfo($"Loading run-spec s3://{BuildBucketName}/{request.RunSpec}");
+        var getRunSpecObjectResponse = await S3Client.GetObjectAsync(new() {
+            BucketName = BuildBucketName,
+            Key = request.RunSpec
+        });
+        var runSpec = LambdaSerializer.Deserialize<RunSpec>(getRunSpecObjectResponse.ResponseStream);
+        try {
+            ArgumentAssertException.Assert(runSpec.Project is not null);
+            ArgumentAssertException.Assert(runSpec.Handler is not null);
+            ArgumentAssertException.Assert(runSpec.ZipFile is not null);
+            ArgumentAssertException.Assert(runSpec.Runtime is not null);
+            ArgumentAssertException.Assert(runSpec.Architecture is not null);
+            ArgumentAssertException.Assert(runSpec.MemorySize is >= 128 and <= 1769);
+            ArgumentAssertException.Assert(runSpec.Payload is not null);
+        } catch(ArgumentAssertException e) {
+            return new() {
+                Success = false,
+                Message = $"Request validation failed: {e.Message.Replace("runSpec.", "")}"
             };
         }
 
@@ -154,25 +163,25 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             LogInfo($"Create Lambda function: {functionName}");
             await LambdaClient.CreateFunctionAsync(new() {
                 Architectures = {
-                    request.Architecture
+                    runSpec.Architecture
                 },
                 Timeout = 30,
-                Runtime = request.Runtime,
+                Runtime = runSpec.Runtime,
                 PackageType = PackageType.Zip,
-                MemorySize = request.MemorySize,
+                MemorySize = runSpec.MemorySize,
                 FunctionName = functionName,
-                Description = $"Measuring {request.ZipFile} (Memory: {request.MemorySize}, Arch: {request.Architecture}, Runtime: {request.Runtime}, Tiered: {request.Tiered}, Ready2Run: {request.Ready2Run})",
+                Description = $"Measuring {runSpec.ZipFile} (Memory: {runSpec.MemorySize}, Arch: {runSpec.Architecture}, Runtime: {runSpec.Runtime}, Tiered: {runSpec.Tiered}, Ready2Run: {runSpec.Ready2Run})",
                 Code = new() {
                     S3Bucket = BuildBucketName,
-                    S3Key = request.ZipFile
+                    S3Key = runSpec.ZipFile
                 },
-                Handler = request.Handler,
+                Handler = runSpec.Handler,
                 Role = $"arn:aws:iam::{AwsAccountId}:role/LambdaDefaultRole"
             });
 
             // conduct cold-start performance measurement
             try {
-                runResults = await MeasureAsync(functionName, request.Payload, SamplesCount);
+                runResults = await MeasureAsync(functionName, runSpec.Payload, SamplesCount);
             } catch(Exception e) {
                 LogErrorAsInfo(e, "Lambda invocation failed; aborting measurement check");
 
@@ -224,12 +233,12 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var usedDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.UsedDuration));
         var totalDurationAverageAndStandardDeviation = AverageAndStandardDeviation(runResults.Select(result => result.TotalDuration));
         MeasurementSummary summary = new() {
-            Project = request.Project,
-            Runtime = request.Runtime,
-            Architecture = request.Architecture,
-            MemorySize = request.MemorySize,
-            Tiered = request.Tiered,
-            Ready2Run = request.Ready2Run,
+            Project = runSpec.Project,
+            Runtime = runSpec.Runtime,
+            Architecture = runSpec.Architecture,
+            MemorySize = runSpec.MemorySize,
+            Tiered = runSpec.Tiered,
+            Ready2Run = runSpec.Ready2Run,
             InitDurationMin = runResults.Min(result => result.InitDuration),
             InitDurationMax = runResults.Max(result => result.InitDuration),
             InitDurationAverage = initDurationAverageAndStandardDeviation.Average,
@@ -249,7 +258,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         };
 
         // write measurements JSON to S3 bucket
-        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + $"-{request.MemorySize}-measurement", ".json"), LambdaSerializer.Serialize(summary));
+        await WriteToS3(Path.ChangeExtension(request.RunSpec, extension: null) + "-measurement.json", LambdaSerializer.Serialize(summary));
 
         // write measurements CSV to S3 bucket
         StringBuilder csv = new();
@@ -257,7 +266,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         foreach(var runResult in runResults) {
             AppendCsvLine(summary.Project, summary.Runtime, summary.Architecture, summary.Tiered, summary.Ready2Run, summary.MemorySize.ToString(), runResult.UsedDuration.ToString(), runResult.InitDuration.ToString(), runResult.TotalDuration.ToString());
         }
-        await WriteToS3(Path.ChangeExtension(Path.ChangeExtension(request.ZipFile, extension: null) + $"-{request.MemorySize}-measurement", ".csv"), csv.ToString());
+        await WriteToS3(Path.ChangeExtension(request.RunSpec, extension: null) + "-measurement.csv", csv.ToString());
 
         // return successfully
         return new() {
@@ -269,9 +278,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{memory},{usedDuration},{initDuration},{totalDuration}");
 
         async Task WriteToS3(string key, string contents) {
-            LogInfo($"Writing measurement file to S3: {key}");
+            LogInfo($"Writing measurement file to s3://{BuildBucketName}/{key}");
             await S3Client.PutObjectAsync(new() {
-                BucketName = _buildBucketName,
+                BucketName = BuildBucketName,
                 Key = key,
                 ContentBody = contents
             });
