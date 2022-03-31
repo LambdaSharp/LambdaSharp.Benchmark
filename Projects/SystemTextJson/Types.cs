@@ -366,6 +366,8 @@ namespace LambdaPerformance.SystemTextJson {
     }
 
     public class Statuses {
+
+        //--- Properties ---
         public string href { get; set; }
     }
 
@@ -383,6 +385,8 @@ namespace LambdaPerformance.SystemTextJson {
     }
 
     public class Root {
+
+        //--- Properties ---
         public string url { get; set; }
         public int id { get; set; }
         public string node_id { get; set; }
