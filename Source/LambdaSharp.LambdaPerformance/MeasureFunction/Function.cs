@@ -30,6 +30,7 @@ public class MeasurementSummary {
     public int MemorySize { get; set; }
     public string? Tiered { get; set; }
     public string? Ready2Run { get; set; }
+    public long ZipSize { get; internal set; }
     public double InitDurationMax { get; set; }
     public double InitDurationMin { get; set; }
     public double InitDurationAverage { get; set; }
@@ -239,6 +240,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             MemorySize = runSpec.MemorySize,
             Tiered = runSpec.Tiered,
             Ready2Run = runSpec.Ready2Run,
+            ZipSize = runSpec.ZipSize,
             InitDurationMin = runResults.Min(result => result.InitDuration),
             InitDurationMax = runResults.Max(result => result.InitDuration),
             InitDurationAverage = initDurationAverageAndStandardDeviation.Average,
@@ -262,9 +264,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // write measurements CSV to S3 bucket
         StringBuilder csv = new();
-        AppendCsvLine(nameof(MeasurementSummary.Project), nameof(MeasurementSummary.Runtime), nameof(MeasurementSummary.Architecture), nameof(MeasurementSummary.Tiered), nameof(MeasurementSummary.Ready2Run), nameof(MeasurementSummary.MemorySize), nameof(MeasurementSample.UsedDuration), nameof(MeasurementSample.InitDuration), nameof(MeasurementSample.TotalDuration));
+        AppendCsvLine(nameof(MeasurementSummary.Project), nameof(MeasurementSummary.Runtime), nameof(MeasurementSummary.Architecture), nameof(MeasurementSummary.Tiered), nameof(MeasurementSummary.Ready2Run), nameof(MeasurementSummary.ZipSize), nameof(MeasurementSummary.MemorySize), nameof(MeasurementSample.UsedDuration), nameof(MeasurementSample.InitDuration), nameof(MeasurementSample.TotalDuration));
         foreach(var runResult in runResults) {
-            AppendCsvLine(summary.Project, summary.Runtime, summary.Architecture, summary.Tiered, summary.Ready2Run, summary.MemorySize.ToString(), runResult.UsedDuration.ToString(), runResult.InitDuration.ToString(), runResult.TotalDuration.ToString());
+            AppendCsvLine(summary.Project, summary.Runtime, summary.Architecture, summary.Tiered, summary.Ready2Run, runSpec.ZipSize.ToString(), summary.MemorySize.ToString(), runResult.UsedDuration.ToString(), runResult.InitDuration.ToString(), runResult.TotalDuration.ToString());
         }
         await WriteToS3(Path.ChangeExtension(request.RunSpec, extension: null) + "-measurement.csv", csv.ToString());
 
@@ -274,8 +276,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         };
 
         // local functions
-        void AppendCsvLine(string? project, string? runtime, string? architecture, string? tiered, string? ready2run, string? memory, string? usedDuration, string? initDuration, string? totalDuration)
-            => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{memory},{usedDuration},{initDuration},{totalDuration}");
+        void AppendCsvLine(string? project, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? usedDuration, string? initDuration, string? totalDuration)
+            => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{usedDuration},{initDuration},{totalDuration}");
 
         async Task WriteToS3(string key, string contents) {
             LogInfo($"Writing measurement file to s3://{BuildBucketName}/{key}");
