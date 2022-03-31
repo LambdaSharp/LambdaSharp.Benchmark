@@ -158,22 +158,66 @@ function build_function() {
     fi
 }
 
+# MinimalFunction
 build_function MinimalFunction dotnet6 x86_64 no no
 build_function MinimalFunction dotnet6 x86_64 no yes
 build_function MinimalFunction dotnet6 x86_64 yes no
 build_function MinimalFunction dotnet6 x86_64 yes yes
-
 build_function MinimalFunction dotnet6 arm64 no no
 build_function MinimalFunction dotnet6 arm64 no yes
 build_function MinimalFunction dotnet6 arm64 yes no
 build_function MinimalFunction dotnet6 arm64 yes yes
-
 build_function MinimalFunction dotnetcore3.1 x86_64 no no
 build_function MinimalFunction dotnetcore3.1 x86_64 no yes
 build_function MinimalFunction dotnetcore3.1 x86_64 yes no
 build_function MinimalFunction dotnetcore3.1 x86_64 yes yes
-
 build_function MinimalFunction dotnetcore3.1 arm64 no no
 build_function MinimalFunction dotnetcore3.1 arm64 no yes
 build_function MinimalFunction dotnetcore3.1 arm64 yes no
 build_function MinimalFunction dotnetcore3.1 arm64 yes yes
+
+# NewtonsoftJson
+build_function NewtonsoftJson dotnet6 x86_64 no no
+build_function NewtonsoftJson dotnet6 x86_64 no yes
+build_function NewtonsoftJson dotnet6 x86_64 yes no
+build_function NewtonsoftJson dotnet6 x86_64 yes yes
+build_function NewtonsoftJson dotnet6 arm64 no no
+build_function NewtonsoftJson dotnet6 arm64 no yes
+build_function NewtonsoftJson dotnet6 arm64 yes no
+build_function NewtonsoftJson dotnet6 arm64 yes yes
+build_function NewtonsoftJson dotnetcore3.1 x86_64 no no
+build_function NewtonsoftJson dotnetcore3.1 x86_64 no yes
+build_function NewtonsoftJson dotnetcore3.1 x86_64 yes no
+build_function NewtonsoftJson dotnetcore3.1 x86_64 yes yes
+build_function NewtonsoftJson dotnetcore3.1 arm64 no no
+build_function NewtonsoftJson dotnetcore3.1 arm64 no yes
+build_function NewtonsoftJson dotnetcore3.1 arm64 yes no
+build_function NewtonsoftJson dotnetcore3.1 arm64 yes yes
+
+# SystemTextJson
+build_function SystemTextJson dotnet6 x86_64 no no
+build_function SystemTextJson dotnet6 x86_64 no yes
+build_function SystemTextJson dotnet6 x86_64 yes no
+build_function SystemTextJson dotnet6 x86_64 yes yes
+build_function SystemTextJson dotnet6 arm64 no no
+build_function SystemTextJson dotnet6 arm64 no yes
+build_function SystemTextJson dotnet6 arm64 yes no
+build_function SystemTextJson dotnet6 arm64 yes yes
+build_function SystemTextJson dotnetcore3.1 x86_64 no no
+build_function SystemTextJson dotnetcore3.1 x86_64 no yes
+build_function SystemTextJson dotnetcore3.1 x86_64 yes no
+build_function SystemTextJson dotnetcore3.1 x86_64 yes yes
+build_function SystemTextJson dotnetcore3.1 arm64 no no
+build_function SystemTextJson dotnetcore3.1 arm64 no yes
+build_function SystemTextJson dotnetcore3.1 arm64 yes no
+build_function SystemTextJson dotnetcore3.1 arm64 yes yes
+
+# SourceGeneratorJson
+build_function SourceGeneratorJson dotnet6 x86_64 no no
+build_function SourceGeneratorJson dotnet6 x86_64 no yes
+build_function SourceGeneratorJson dotnet6 x86_64 yes no
+build_function SourceGeneratorJson dotnet6 x86_64 yes yes
+build_function SourceGeneratorJson dotnet6 arm64 no no
+build_function SourceGeneratorJson dotnet6 arm64 no yes
+build_function SourceGeneratorJson dotnet6 arm64 yes no
+build_function SourceGeneratorJson dotnet6 arm64 yes yes
