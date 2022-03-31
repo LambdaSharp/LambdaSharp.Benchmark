@@ -1,0 +1,4 @@
+{
+    "Handler": "AwsSdk::LambdaPerformance.AwsSdk.Function::ProcessAsync",
+    "Payload": "{}"
+}

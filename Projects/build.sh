@@ -221,3 +221,21 @@ build_function SourceGeneratorJson dotnet6 arm64 no no
 build_function SourceGeneratorJson dotnet6 arm64 no yes
 build_function SourceGeneratorJson dotnet6 arm64 yes no
 build_function SourceGeneratorJson dotnet6 arm64 yes yes
+
+# AwsSdk
+build_function AwsSdk dotnet6 x86_64 no no
+build_function AwsSdk dotnet6 x86_64 no yes
+build_function AwsSdk dotnet6 x86_64 yes no
+build_function AwsSdk dotnet6 x86_64 yes yes
+build_function AwsSdk dotnet6 arm64 no no
+build_function AwsSdk dotnet6 arm64 no yes
+build_function AwsSdk dotnet6 arm64 yes no
+build_function AwsSdk dotnet6 arm64 yes yes
+build_function AwsSdk dotnetcore3.1 x86_64 no no
+build_function AwsSdk dotnetcore3.1 x86_64 no yes
+build_function AwsSdk dotnetcore3.1 x86_64 yes no
+build_function AwsSdk dotnetcore3.1 x86_64 yes yes
+build_function AwsSdk dotnetcore3.1 arm64 no no
+build_function AwsSdk dotnetcore3.1 arm64 no yes
+build_function AwsSdk dotnetcore3.1 arm64 yes no
+build_function AwsSdk dotnetcore3.1 arm64 yes yes
