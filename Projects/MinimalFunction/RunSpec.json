@@ -1,4 +1,0 @@
-{
-    "Handler": "MinimalFunction::LambdaPerformance.MinimalFunction.Function::ProcessAsync",
-    "Payload": "{}"
-}

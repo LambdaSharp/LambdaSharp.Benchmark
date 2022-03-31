@@ -158,23 +158,23 @@ function build_function() {
     fi
 }
 
-# MinimalFunction
-build_function MinimalFunction dotnet6 x86_64 no no
-build_function MinimalFunction dotnet6 x86_64 no yes
-build_function MinimalFunction dotnet6 x86_64 yes no
-build_function MinimalFunction dotnet6 x86_64 yes yes
-build_function MinimalFunction dotnet6 arm64 no no
-build_function MinimalFunction dotnet6 arm64 no yes
-build_function MinimalFunction dotnet6 arm64 yes no
-build_function MinimalFunction dotnet6 arm64 yes yes
-build_function MinimalFunction dotnetcore3.1 x86_64 no no
-build_function MinimalFunction dotnetcore3.1 x86_64 no yes
-build_function MinimalFunction dotnetcore3.1 x86_64 yes no
-build_function MinimalFunction dotnetcore3.1 x86_64 yes yes
-build_function MinimalFunction dotnetcore3.1 arm64 no no
-build_function MinimalFunction dotnetcore3.1 arm64 no yes
-build_function MinimalFunction dotnetcore3.1 arm64 yes no
-build_function MinimalFunction dotnetcore3.1 arm64 yes yes
+# Minimal
+build_function Minimal dotnet6 x86_64 no no
+build_function Minimal dotnet6 x86_64 no yes
+build_function Minimal dotnet6 x86_64 yes no
+build_function Minimal dotnet6 x86_64 yes yes
+build_function Minimal dotnet6 arm64 no no
+build_function Minimal dotnet6 arm64 no yes
+build_function Minimal dotnet6 arm64 yes no
+build_function Minimal dotnet6 arm64 yes yes
+build_function Minimal dotnetcore3.1 x86_64 no no
+build_function Minimal dotnetcore3.1 x86_64 no yes
+build_function Minimal dotnetcore3.1 x86_64 yes no
+build_function Minimal dotnetcore3.1 x86_64 yes yes
+build_function Minimal dotnetcore3.1 arm64 no no
+build_function Minimal dotnetcore3.1 arm64 no yes
+build_function Minimal dotnetcore3.1 arm64 yes no
+build_function Minimal dotnetcore3.1 arm64 yes yes
 
 # NewtonsoftJson
 build_function NewtonsoftJson dotnet6 x86_64 no no

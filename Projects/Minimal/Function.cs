@@ -2,7 +2,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LambdaPerformance.MinimalFunction {
+namespace LambdaPerformance.Minimal {
 
     public sealed class Function {
 
