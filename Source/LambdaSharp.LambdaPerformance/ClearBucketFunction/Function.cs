@@ -42,7 +42,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public override async Task InitializeAsync(LambdaConfig config) {
 
         // read configuration settings
-        _buildBucketName = config.ReadS3BucketName("CodeBuild::ArtifactBucket");
+        _buildBucketName = config.ReadS3BucketName("BuildBucket");
 
         // initialize clients
         _s3Client = new AmazonS3Client();

@@ -57,15 +57,25 @@ Items:
       - both
     Default: both
 
-  - Parameter: SamplesCount
+  - Parameter: ColdStartSamplesCount
     Scope: MeasureFunction
     Section: Measurement Configuration
-    Label: Number of measurement samples to collect per project and configuration
-    Description: Number of measurement samples to collect per project and configuration
+    Label: Number of cold-start measurement samples to collect per project and configuration
+    Description: Number of cold-start samples
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 100
+
+  - Parameter: WarmStartSamplesCount
+    Scope: MeasureFunction
+    Section: Measurement Configuration
+    Label: Number of warm-start measurement samples to collect per project and configuration
+    Description: Number of warm-start samples
     Type: Number
     Default: 50
     MinValue: 1
-    MaxValue: 100
+    MaxValue: 500
 
   - Parameter: Parallelism
     Section: Measurement Configuration
@@ -76,39 +86,14 @@ Items:
     MaxValue: 1000
 
   ###
-  # Resources
+  # Build Project
   ###
-
-  - Function: MeasureFunction
-    Memory: 512
-    Timeout: 900
-
-  - Resource: FunctionPermissions
-    Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Module::Id}-Test-*
-    Allow:
-      - lambda:CreateFunction
-      - lambda:UpdateFunctionConfiguration
-      - lambda:DeleteFunction
-      - lambda:InvokeFunction
-      - lambda:GetFunction
-
-  - Resource: LambdaRolePermissions
-    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaDefaultRole"
-    Allow:
-      - iam:PassRole
-
-  - Resource: FunctionLogPermissions
-    Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
-    Allow:
-      - logs:DeleteLogGroup
-      - logs:DeleteLogStream
-
-  - Package: Projects
-    Build: bash -c "find ../../Projects -name obj -or -name bin | xargs rm -rf"
-    Files: ../../Projects
 
   - Group: CodeBuild
     Items:
+
+      - Package: Spec
+        Files: CodeBuildSpec
 
       - Resource: Project
         Type: AWS::CodeBuild::Project
@@ -116,7 +101,10 @@ Items:
           Artifacts:
             Type: S3
             Packaging: NONE
-            Location: !Ref CodeBuild::ArtifactBucket
+            Location: !Ref BuildBucket
+            Name: /
+            NamespaceType: BUILD_ID
+            Path: Build
           Environment:
             ComputeType: BUILD_GENERAL1_SMALL
             Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
@@ -124,7 +112,7 @@ Items:
           ServiceRole: !GetAtt CodeBuild::Role.Arn
           Source:
             Type: S3
-            Location: !Sub ${Deployment::BucketName}/${Projects}
+            Location: !Sub ${Deployment::BucketName}/${CodeBuild::Spec}
 
       - Variable: ProjectName
         Scope: ListArtifactsFunction, CombineMeasurementsFunction
@@ -164,10 +152,11 @@ Items:
                       - !Sub arn:${AWS::Partition}:s3:::${Deployment::BucketName}/*
                   - Effect: Allow
                     Action:
+                      - s3:GetObject
                       - s3:PutObject
                     Resource:
-                      - !Sub arn:${AWS::Partition}:s3:::${CodeBuild::ArtifactBucket}
-                      - !Sub arn:${AWS::Partition}:s3:::${CodeBuild::ArtifactBucket}/*
+                      - !Sub arn:${AWS::Partition}:s3:::${BuildBucket}
+                      - !Sub arn:${AWS::Partition}:s3:::${BuildBucket}/*
                   - Effect: Allow
                     Action:
                       - codebuild:CreateReportGroup
@@ -176,20 +165,6 @@ Items:
                       - codebuild:BatchPutTestCases
                       - codebuild:BatchPutCodeCoverages
                     Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*
-
-      - Resource: ArtifactBucket
-        Scope: MeasureFunction, ListArtifactsFunction, ClearBucketFunction, CombineMeasurementsFunction
-        Type: AWS::S3::Bucket
-        Allow:
-          - s3:ListBucket
-          - s3:GetObject
-          - s3:PutObject
-          - s3:DeleteObject
-
-      - Resource: EmptyArtifactBucket
-        Type: LambdaSharp::S3::EmptyBucket
-        Properties:
-          Bucket: !Ref CodeBuild::ArtifactBucket
 
   - Group: TestWorkflow
     Items:
@@ -242,14 +217,56 @@ Items:
                     Resource:
                       - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
 
-  - Function: ListArtifactsFunction
-    Memory: 1769
-    Timeout: 30
+  ###
+  # Functions
+  ###
 
   - Function: ClearBucketFunction
     Memory: 1769
     Timeout: 30
 
+  - Function: ListArtifactsFunction
+    Memory: 1769
+    Timeout: 30
+
+  - Function: MeasureFunction
+    Memory: 512
+    Timeout: 900
+
+  - Resource: FunctionPermissions
+    Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Module::Id}-Test-*
+    Allow:
+      - lambda:CreateFunction
+      - lambda:UpdateFunctionConfiguration
+      - lambda:DeleteFunction
+      - lambda:InvokeFunction
+      - lambda:GetFunction
+
+  - Resource: LambdaRolePermissions
+    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaDefaultRole"
+    Allow:
+      - iam:PassRole
+
+  - Resource: FunctionLogPermissions
+    Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
+    Allow:
+      - logs:DeleteLogGroup
+      - logs:DeleteLogStream
+
   - Function: CombineMeasurementsFunction
     Memory: 1769
     Timeout: 300
+
+  - Resource: BuildBucket
+    Scope: MeasureFunction, ListArtifactsFunction, ClearBucketFunction, CombineMeasurementsFunction
+    Type: AWS::S3::Bucket
+    Allow:
+      - s3:ListBucket
+      - s3:GetObject
+      - s3:PutObject
+      - s3:DeleteObject
+
+  - Resource: EmptyBuildBucket
+    Type: LambdaSharp::S3::EmptyBucket
+    Properties:
+      Bucket: !Ref BuildBucket

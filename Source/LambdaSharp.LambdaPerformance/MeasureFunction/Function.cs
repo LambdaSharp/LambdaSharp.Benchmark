@@ -118,7 +118,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public Function() : base(new LambdaSharp.Serialization.LambdaSystemTextJsonSerializer()) { }
 
     //--- Properties ---
-    public int SamplesCount { get; set; }
+    public int ColdStartSamplesCount { get; set; }
+    public int WarmStartSamplesCount { get; set; }
     private IAmazonLambda LambdaClient => _lambdaClient ?? throw new InvalidOperationException();
     private IAmazonCloudWatchLogs LogsClient => _logsClient ?? throw new InvalidOperationException();
     private string AwsAccountId => CurrentContext.InvokedFunctionArn.Split(':')[4];
@@ -129,8 +130,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public override async Task InitializeAsync(LambdaConfig config) {
 
         // read configuration settings
-        _buildBucketName = config.ReadS3BucketName("CodeBuild::ArtifactBucket");
-        SamplesCount = int.Parse(config.ReadText("SamplesCount"));
+        _buildBucketName = config.ReadS3BucketName("BuildBucket");
+        ColdStartSamplesCount = int.Parse(config.ReadText("ColdStartSamplesCount"));
+        WarmStartSamplesCount = int.Parse(config.ReadText("WarmStartSamplesCount"));
 
         // initialize clients
         _lambdaClient = new AmazonLambdaClient();
@@ -200,9 +202,11 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
             // conduct cold-start performance measurement
             try {
-                runResults = await MeasureAsync(functionName, runSpec.Payload, SamplesCount);
+                runResults = await MeasureAsync(functionName, runSpec.Payload, ColdStartSamplesCount);
             } catch(Exception e) {
                 LogErrorAsInfo(e, "Lambda invocation failed; aborting measurement check");
+
+                // TODO: should we let the exception bubble up instead?
 
                 // return error response
                 return new() {
@@ -339,6 +343,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             });
             var result = ParseLambdaReportFromLogResult(response.LogResult);
             if(result.InitDuration == 0.0) {
+                LogInfo($"Lambda invocation did not produce a cold-start. Trying again.");
 
                 // invocation didn't cause a cold-start; add an additional run
                 ++runs;

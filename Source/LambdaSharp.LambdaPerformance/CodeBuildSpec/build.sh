@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # obtain location of Source folder from script location
-SCRIPT_FOLDER=`dirname -- "$(readlink -f "${BASH_SOURCE}")"`
-PROJECTS_FOLDER="$SCRIPT_FOLDER"
-BUILD_FOLDER="$SCRIPT_FOLDER/build"
-PUBLISH_FOLDER="$SCRIPT_FOLDER/publish"
+PROJECTS_FOLDER=`pwd`
+BUILD_FOLDER="$PROJECTS_FOLDER/build"
+PUBLISH_FOLDER="$PROJECTS_FOLDER/publish"
 
 # recreate build folder
 if [ -d "$BUILD_FOLDER" ]; then
@@ -28,9 +27,6 @@ mkdir "$PUBLISH_FOLDER"
 #   READYTORUN: either 'yes' or 'no'
 ###
 function build_function() {
-
-    # clean-up previous build
-    rm -rf "$PROJECTS_FOLDER/$1/bin" "$PROJECTS_FOLDER/$1/obj" > /dev/null 2>&1
 
     # determine framework
     local FRAMEWORK_BUILD=""
@@ -158,84 +154,35 @@ function build_function() {
     fi
 }
 
-# Minimal
-build_function Minimal dotnet6 x86_64 no no
-build_function Minimal dotnet6 x86_64 no yes
-build_function Minimal dotnet6 x86_64 yes no
-build_function Minimal dotnet6 x86_64 yes yes
-build_function Minimal dotnet6 arm64 no no
-build_function Minimal dotnet6 arm64 no yes
-build_function Minimal dotnet6 arm64 yes no
-build_function Minimal dotnet6 arm64 yes yes
-build_function Minimal dotnetcore3.1 x86_64 no no
-build_function Minimal dotnetcore3.1 x86_64 no yes
-build_function Minimal dotnetcore3.1 x86_64 yes no
-build_function Minimal dotnetcore3.1 x86_64 yes yes
-build_function Minimal dotnetcore3.1 arm64 no no
-build_function Minimal dotnetcore3.1 arm64 no yes
-build_function Minimal dotnetcore3.1 arm64 yes no
-build_function Minimal dotnetcore3.1 arm64 yes yes
+###
+# Downoad and unzip the project file
+###
+PROJECT_NAME=`basename "$PROJECT_SOURCE" .zip`
 
-# NewtonsoftJson
-build_function NewtonsoftJson dotnet6 x86_64 no no
-build_function NewtonsoftJson dotnet6 x86_64 no yes
-build_function NewtonsoftJson dotnet6 x86_64 yes no
-build_function NewtonsoftJson dotnet6 x86_64 yes yes
-build_function NewtonsoftJson dotnet6 arm64 no no
-build_function NewtonsoftJson dotnet6 arm64 no yes
-build_function NewtonsoftJson dotnet6 arm64 yes no
-build_function NewtonsoftJson dotnet6 arm64 yes yes
-build_function NewtonsoftJson dotnetcore3.1 x86_64 no no
-build_function NewtonsoftJson dotnetcore3.1 x86_64 no yes
-build_function NewtonsoftJson dotnetcore3.1 x86_64 yes no
-build_function NewtonsoftJson dotnetcore3.1 x86_64 yes yes
-build_function NewtonsoftJson dotnetcore3.1 arm64 no no
-build_function NewtonsoftJson dotnetcore3.1 arm64 no yes
-build_function NewtonsoftJson dotnetcore3.1 arm64 yes no
-build_function NewtonsoftJson dotnetcore3.1 arm64 yes yes
+aws s3 cp "$PROJECT_SOURCE" ./$PROJECT_NAME.zip
+if [ ! -f "$ZIP_FILE" ]; then
+    echo "ERROR: downlad failed from $PROJECT_SOURCE"
+    exit 1
+fi
 
-# SystemTextJson
-build_function SystemTextJson dotnet6 x86_64 no no
-build_function SystemTextJson dotnet6 x86_64 no yes
-build_function SystemTextJson dotnet6 x86_64 yes no
-build_function SystemTextJson dotnet6 x86_64 yes yes
-build_function SystemTextJson dotnet6 arm64 no no
-build_function SystemTextJson dotnet6 arm64 no yes
-build_function SystemTextJson dotnet6 arm64 yes no
-build_function SystemTextJson dotnet6 arm64 yes yes
-build_function SystemTextJson dotnetcore3.1 x86_64 no no
-build_function SystemTextJson dotnetcore3.1 x86_64 no yes
-build_function SystemTextJson dotnetcore3.1 x86_64 yes no
-build_function SystemTextJson dotnetcore3.1 x86_64 yes yes
-build_function SystemTextJson dotnetcore3.1 arm64 no no
-build_function SystemTextJson dotnetcore3.1 arm64 no yes
-build_function SystemTextJson dotnetcore3.1 arm64 yes no
-build_function SystemTextJson dotnetcore3.1 arm64 yes yes
+unzip "./$PROJECT_NAME.zip"
 
-# SourceGeneratorJson
-build_function SourceGeneratorJson dotnet6 x86_64 no no
-build_function SourceGeneratorJson dotnet6 x86_64 no yes
-build_function SourceGeneratorJson dotnet6 x86_64 yes no
-build_function SourceGeneratorJson dotnet6 x86_64 yes yes
-build_function SourceGeneratorJson dotnet6 arm64 no no
-build_function SourceGeneratorJson dotnet6 arm64 no yes
-build_function SourceGeneratorJson dotnet6 arm64 yes no
-build_function SourceGeneratorJson dotnet6 arm64 yes yes
-
-# AwsSdk
-build_function AwsSdk dotnet6 x86_64 no no
-build_function AwsSdk dotnet6 x86_64 no yes
-build_function AwsSdk dotnet6 x86_64 yes no
-build_function AwsSdk dotnet6 x86_64 yes yes
-build_function AwsSdk dotnet6 arm64 no no
-build_function AwsSdk dotnet6 arm64 no yes
-build_function AwsSdk dotnet6 arm64 yes no
-build_function AwsSdk dotnet6 arm64 yes yes
-build_function AwsSdk dotnetcore3.1 x86_64 no no
-build_function AwsSdk dotnetcore3.1 x86_64 no yes
-build_function AwsSdk dotnetcore3.1 x86_64 yes no
-build_function AwsSdk dotnetcore3.1 x86_64 yes yes
-build_function AwsSdk dotnetcore3.1 arm64 no no
-build_function AwsSdk dotnetcore3.1 arm64 no yes
-build_function AwsSdk dotnetcore3.1 arm64 yes no
-build_function AwsSdk dotnetcore3.1 arm64 yes yes
+###
+# Build project configurations
+###
+build_function "$PROJECT_NAME" dotnet6          x86_64  no  no
+build_function "$PROJECT_NAME" dotnet6          x86_64  no  yes
+build_function "$PROJECT_NAME" dotnet6          x86_64  yes no
+build_function "$PROJECT_NAME" dotnet6          x86_64  yes yes
+build_function "$PROJECT_NAME" dotnet6          arm64   no  no
+build_function "$PROJECT_NAME" dotnet6          arm64   no  yes
+build_function "$PROJECT_NAME" dotnet6          arm64   yes no
+build_function "$PROJECT_NAME" dotnet6          arm64   yes yes
+build_function "$PROJECT_NAME" dotnetcore3.1    x86_64  no  no
+build_function "$PROJECT_NAME" dotnetcore3.1    x86_64  no  yes
+build_function "$PROJECT_NAME" dotnetcore3.1    x86_64  yes no
+build_function "$PROJECT_NAME" dotnetcore3.1    x86_64  yes yes
+build_function "$PROJECT_NAME" dotnetcore3.1    arm64   no  no
+build_function "$PROJECT_NAME" dotnetcore3.1    arm64   no  yes
+build_function "$PROJECT_NAME" dotnetcore3.1    arm64   yes no
+build_function "$PROJECT_NAME" dotnetcore3.1    arm64   yes yes
