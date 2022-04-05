@@ -23,6 +23,7 @@ ZIP_FILE="$FOLDER_NAME.zip"
 if [ -f "$ZIP_FILE" ]; then
     rm "$ZIP_FILE"
 fi
-zip -9 -r "$ZIP_FILE" "$1" -x "**/bin/*" -x "**/obj/*" > /dev/null
+echo "Creating $ZIP_FILE"
+zip -9 -r "$ZIP_FILE" "$1" -x "**/bin/*" -x "**/obj/*"
 aws s3 cp "$ZIP_FILE" "s3://$2/Projects/$ZIP_FILE"
 rm "$ZIP_FILE"
