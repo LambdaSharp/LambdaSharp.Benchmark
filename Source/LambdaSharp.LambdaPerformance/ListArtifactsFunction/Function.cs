@@ -22,7 +22,11 @@ using Amazon.S3;
 using LambdaSharp;
 using LambdaSharp.LambdaPerformance.Common;
 
-public class FunctionRequest { }
+public class FunctionRequest {
+
+    //--- Properties ---
+    public string? BuildId { get; set; }
+}
 
 public class FunctionResponse {
 
@@ -40,7 +44,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     //--- Fields ---
     private string? _buildBucketName;
-    private string? _codeBuildProjectName;
     private IAmazonS3? _s3Client;
     private string[]? _architectures;
     private string[]? _runtimes;
@@ -52,7 +55,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     //--- Properties ---
     private string BuildBucketName => _buildBucketName ?? throw new InvalidOperationException();
-    private string CodeBuildProjectName => _codeBuildProjectName ?? throw new InvalidOperationException();
     private IAmazonS3 S3Client => _s3Client ?? throw new InvalidOperationException();
     public IEnumerable<string> Architectures => _architectures ?? throw new InvalidOperationException();
     public IEnumerable<int> MemorySizes => _memoryConfigurations ?? throw new InvalidOperationException();
@@ -66,7 +68,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // read configuration settings
         _buildBucketName = config.ReadS3BucketName("BuildBucket");
-        _codeBuildProjectName = config.ReadText("CodeBuild::ProjectName");
         _architectures = config.ReadText("Architectures").Split(",", StringSplitOptions.RemoveEmptyEntries);
         _runtimes = config.ReadText("Runtimes").Split(",", StringSplitOptions.RemoveEmptyEntries);
         _memoryConfigurations = config.ReadText("MemorySizes").Split(",", StringSplitOptions.RemoveEmptyEntries).Select(value => int.Parse(value)).ToArray();
@@ -79,12 +80,16 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     }
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
+        ArgumentAssertException.Assert(request.BuildId is not null);
+        ArgumentAssertException.Assert(request.BuildId.IndexOf(':') >= 0);
+        LogInfo($"List artifacts for BuildId: {request.BuildId}");
 
         // return list of all build artifacts
-        LogInfo($"Finding all run-specs at s3://{BuildBucketName}/{_codeBuildProjectName}/");
+        var pathPrefix = $"Build/{request.BuildId.Split(':', 2)[1]}/";
+        LogInfo($"Finding all run-specs at s3://{BuildBucketName}/Build/{pathPrefix}");
         var listObjectsResponse = await S3Client.ListObjectsV2Async(new() {
             BucketName = BuildBucketName,
-            Prefix = $"{_codeBuildProjectName}/",
+            Prefix = pathPrefix,
             Delimiter = "/"
         });
         List<RunSpec> runSpecs = new();

@@ -1,26 +1,23 @@
 {
-    "StartAt": "ClearBucket",
+    "StartAt": "StartBuild",
     "States": {
-        "ClearBucket": {
-            "Type": "Task",
-            "Resource": "arn:aws:states:::lambda:invoke",
-            "Parameters": {
-                "FunctionName": "${ClearBucketFunction}",
-                "Payload": { }
-            },
-            "ResultSelector": { },
-            "ResultPath": "$.ClearBucket",
-            "Next": "StartBuild"
-        },
 
         "StartBuild": {
             "Type": "Task",
             "Resource": "arn:${AWS::Partition}:states:::codebuild:startBuild.sync",
             "Parameters": {
-                "ProjectName": "${CodeBuild::Project}"
+                "ProjectName": "${CodeBuild::Project}",
+                "EnvironmentVariablesOverride": [
+                    {
+                        "Name": "PROJECT_SOURCE",
+                        "Type": "PLAINTEXT",
+                        "Value.$": "States.Format('s3://${BuildBucket}/{}', $.ProjectPath)"
+                    }
+                ]
             },
             "ResultSelector": {
-                "BuildStatus.$": "$.Build.BuildStatus"
+                "BuildStatus.$": "$.Build.BuildStatus",
+                "BuildId.$": "$.Build.Id"
             },
             "ResultPath": "$.StartBuild",
             "Next": "CheckBuildOutcome"
@@ -43,7 +40,9 @@
             "Resource": "arn:aws:states:::lambda:invoke",
             "Parameters": {
                 "FunctionName": "${ListArtifactsFunction}",
-                "Payload": { }
+                "Payload": {
+                    "BuildId.$": "$.StartBuild.BuildId"
+                }
             },
             "ResultSelector": {
                 "RunSpecs.$": "$.Payload.RunSpecs"
@@ -86,10 +85,13 @@
             "Resource": "arn:aws:states:::lambda:invoke",
             "Parameters": {
                 "FunctionName": "${CombineMeasurementsFunction}",
-                "Payload": { }
+                "Payload": {
+                    "ProjectPath.$": "$.ProjectPath",
+                    "BuildId.$": "$.StartBuild.BuildId"
+                }
             },
             "ResultSelector": {
-                "RunSpecs.$": "$.Payload"
+                "MeasurementFile.$": "$.Payload.MeasurementFile"
             },
             "ResultPath": "$.CombineMeasurements",
             "Next": "BuildSuccess"
@@ -98,7 +100,6 @@
         "BuildFailed": {
             "Type": "Fail"
         },
-
 
         "BuildSuccess": {
             "Type": "Succeed"

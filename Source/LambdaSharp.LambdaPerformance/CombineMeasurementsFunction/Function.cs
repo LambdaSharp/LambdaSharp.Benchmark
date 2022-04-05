@@ -22,15 +22,23 @@ using System.Text;
 using Amazon.S3;
 using LambdaSharp;
 
-public class FunctionRequest { }
+public class FunctionRequest {
 
-public class FunctionResponse { }
+    //--- Properties ---
+    public string? ProjectPath { get; set; }
+    public string? BuildId { get; set; }
+}
+
+public class FunctionResponse {
+
+    //--- Properties ---
+    public string? MeasurementFile { get; set; }
+}
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
 
     //--- Fields ---
     private string? _buildBucketName;
-    private string? _codeBuildProjectName;
     private IAmazonS3? _s3Client;
 
     //--- Constructors ---
@@ -45,22 +53,28 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // read configuration settings
         _buildBucketName = config.ReadS3BucketName("BuildBucket");
-        _codeBuildProjectName = config.ReadText("CodeBuild::ProjectName");
 
         // initialize clients
         _s3Client = new AmazonS3Client();
     }
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
+        ArgumentAssertException.Assert(request.ProjectPath is not null);
+        ArgumentAssertException.Assert(request.BuildId is not null);
+        ArgumentAssertException.Assert(request.BuildId.IndexOf(':') >= 0);
+        LogInfo($"Combine measurements for BuildId: {request.BuildId}");
 
         // return list of all build artifacts
+        var buildId = request.BuildId.Split(':', 2)[1];
+        var pathPrefix = $"Build/{buildId}/";
+        LogInfo($"Finding all measurements at s3://{BuildBucketName}/{pathPrefix}");
         var listObjectsResponse = await S3Client.ListObjectsV2Async(new() {
             BucketName = BuildBucketName,
-            Prefix = $"{_codeBuildProjectName}/",
+            Prefix = pathPrefix,
             Delimiter = "/"
         });
 
-        // read all run-spec JSON file and augment them with the zip file location
+        // read all CSV measurement files and combine them
         StringBuilder combinedCsv = new();
         foreach(var runSpecObject in listObjectsResponse.S3Objects.Where(s3Object => s3Object.Key.EndsWith(".csv", StringComparison.Ordinal))) {
 
@@ -79,11 +93,17 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 combinedCsv.Append(csv);
             }
         }
+
+        // write combined CSV file back to be co-located with original project file
+        var resultPath = Path.ChangeExtension(request.ProjectPath, extension: null) + $"-{buildId}.csv";
+        LogInfo($"Writing combined measurement file to s3://{resultPath}");
         await S3Client.PutObjectAsync(new() {
             BucketName = _buildBucketName,
-            Key = $"{_codeBuildProjectName}/combined-measurements.csv",
+            Key = resultPath,
             ContentBody = combinedCsv.ToString()
         });
-        return new();
+        return new() {
+            MeasurementFile = resultPath
+        };
     }
 }

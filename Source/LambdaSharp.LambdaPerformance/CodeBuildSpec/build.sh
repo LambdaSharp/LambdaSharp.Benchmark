@@ -5,6 +5,12 @@ PROJECTS_FOLDER=`pwd`
 BUILD_FOLDER="$PROJECTS_FOLDER/build"
 PUBLISH_FOLDER="$PROJECTS_FOLDER/publish"
 
+# check required environment variable is set
+if [ "$PROJECT_SOURCE" == "" ]; then
+    echo "ERROR: environment variable 'PROJECT_SOURCE' is not set"
+    exit 1
+fi
+
 # recreate build folder
 if [ -d "$BUILD_FOLDER" ]; then
     rm -rf "$BUILD_FOLDER"
@@ -158,14 +164,15 @@ function build_function() {
 # Downoad and unzip the project file
 ###
 PROJECT_NAME=`basename "$PROJECT_SOURCE" .zip`
+PROJECT_ZIP="$PROJECT_NAME.zip"
 
-aws s3 cp "$PROJECT_SOURCE" ./$PROJECT_NAME.zip
-if [ ! -f "$ZIP_FILE" ]; then
-    echo "ERROR: downlad failed from $PROJECT_SOURCE"
+aws s3 cp "$PROJECT_SOURCE" ./$PROJECT_ZIP
+if [ ! -f "$PROJECT_ZIP" ]; then
+    echo "ERROR: downlad failed for $PROJECT_SOURCE"
     exit 1
 fi
 
-unzip "./$PROJECT_NAME.zip"
+unzip "./$PROJECT_ZIP"
 
 ###
 # Build project configurations

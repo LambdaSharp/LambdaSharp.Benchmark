@@ -13,6 +13,9 @@
     <PackageReference Include="AWSSDK.S3" Version="3.7.8.10" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="ArgumentAssert" Version="1.0.0"/>
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="../Common/**" />
   </ItemGroup>
   <ItemGroup>

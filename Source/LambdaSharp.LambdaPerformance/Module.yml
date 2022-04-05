@@ -114,10 +114,6 @@ Items:
             Type: S3
             Location: !Sub ${Deployment::BucketName}/${CodeBuild::Spec}
 
-      - Variable: ProjectName
-        Scope: ListArtifactsFunction, CombineMeasurementsFunction
-        Value: !Ref CodeBuild::Project
-
       - Resource: Role
         Type: AWS::IAM::Role
         Properties:
@@ -153,6 +149,8 @@ Items:
                   - Effect: Allow
                     Action:
                       - s3:GetObject
+                      - s3:GetObjectVersion
+                      - s3:ListBucket
                       - s3:PutObject
                     Resource:
                       - !Sub arn:${AWS::Partition}:s3:::${BuildBucket}
@@ -205,7 +203,6 @@ Items:
                     Action:
                       - lambda:InvokeFunction
                     Resource:
-                      - !GetAtt ClearBucketFunction.Arn
                       - !GetAtt ListArtifactsFunction.Arn
                       - !GetAtt MeasureFunction.Arn
                       - !GetAtt CombineMeasurementsFunction.Arn
@@ -220,10 +217,6 @@ Items:
   ###
   # Functions
   ###
-
-  - Function: ClearBucketFunction
-    Memory: 1769
-    Timeout: 30
 
   - Function: ListArtifactsFunction
     Memory: 1769
@@ -258,8 +251,15 @@ Items:
     Timeout: 300
 
   - Resource: BuildBucket
-    Scope: MeasureFunction, ListArtifactsFunction, ClearBucketFunction, CombineMeasurementsFunction
+    Scope: MeasureFunction, ListArtifactsFunction, CombineMeasurementsFunction
     Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireBuildObjects
+            Status: Enabled
+            ExpirationInDays: 1
+            Prefix: Build/
     Allow:
       - s3:ListBucket
       - s3:GetObject
