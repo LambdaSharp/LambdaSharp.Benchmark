@@ -19,13 +19,10 @@ fi
 FOLDER_NAME=`basename "${1}"`
 ZIP_FILE="$FOLDER_NAME.zip"
 
-# remove any existing build artifacts, we don't need them
-find "$1" -name bin -or -name obj | xargs rm -rf
-
 # zip folder and uplaod it
 if [ -f "$ZIP_FILE" ]; then
     rm "$ZIP_FILE"
 fi
-zip -9 -r "$ZIP_FILE" "$1" > /dev/null
+zip -9 -r "$ZIP_FILE" "$1" -x "**/bin/*" -x "**/obj/*" > /dev/null
 aws s3 cp "$ZIP_FILE" "s3://$2/Projets/$ZIP_FILE"
 rm "$ZIP_FILE"
