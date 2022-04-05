@@ -236,7 +236,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // create result file
         MeasurementSummary summary = new() {
-            Project = runSpec.Project,
+            Project = Path.ChangeExtension(request.RunSpec, extension: null),
             Runtime = runSpec.Runtime,
             Architecture = runSpec.Architecture,
             MemorySize = runSpec.MemorySize,
