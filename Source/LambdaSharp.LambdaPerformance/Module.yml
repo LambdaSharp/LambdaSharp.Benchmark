@@ -81,7 +81,7 @@ Items:
     Section: Measurement Configuration
     Label: Number of simultaneous measurements to run
     Type: Number
-    Default: 50
+    Default: 10
     MinValue: 1
     MaxValue: 1000
 
@@ -168,8 +168,7 @@ Items:
     Items:
 
       - Resource: StepFunction
-        Pragmas:
-          - no-type-validation # needed because `Definition` is defined as an empty object
+        Scope: WatchBucketFunction
         Type: AWS::StepFunctions::StateMachine
         Properties:
           StateMachineType: STANDARD
@@ -219,14 +218,17 @@ Items:
   ###
 
   - Function: ListArtifactsFunction
+    Description: Generate combined run-specs for all build and memory configurations
     Memory: 1769
     Timeout: 30
 
   - Function: MeasureFunction
+    Description: Measure cold- and warm-start performance for a single Lambda function run-spec
     Memory: 512
     Timeout: 900
 
   - Resource: FunctionPermissions
+    Description: Permissions required to manage the Lambda function to measure
     Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Module::Id}-Test-*
     Allow:
       - lambda:CreateFunction
@@ -236,17 +238,20 @@ Items:
       - lambda:GetFunction
 
   - Resource: LambdaRolePermissions
+    Description: IAM role used by the Lambda function being measured
     Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaDefaultRole"
     Allow:
       - iam:PassRole
 
   - Resource: FunctionLogPermissions
+    Description: Permissions required to delete the CloudWatch logs created by the measured Lambda function
     Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
     Allow:
       - logs:DeleteLogGroup
       - logs:DeleteLogStream
 
   - Function: CombineMeasurementsFunction
+    Description: Function to combine all individual measurements into a single file
     Memory: 1769
     Timeout: 300
 
@@ -267,6 +272,31 @@ Items:
       - s3:DeleteObject
 
   - Resource: EmptyBuildBucket
+    Description: Ensure the build bucket is empty on stack deletion
     Type: LambdaSharp::S3::EmptyBucket
     Properties:
       Bucket: !Ref BuildBucket
+
+  - Function: WatchBucketFunction
+    Description: Watch build bucket for new Lambda zip packages to kick-off a measurement
+    Memory: 1769
+    Timeout: 30
+    Sources:
+      - S3: BuildBucket
+        Events:
+          - "s3:ObjectCreated:*"
+        Prefix: Projects/
+        Suffix: .zip
+
+  - Resource: WatchBucketFunctionPermission
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: InvokeStepFunction
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: states:StartExecution
+            Resource: !Ref TestWorkflow::StepFunction
+      Roles:
+        - !Ref Module::Role

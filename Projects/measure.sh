@@ -24,5 +24,5 @@ if [ -f "$ZIP_FILE" ]; then
     rm "$ZIP_FILE"
 fi
 zip -9 -r "$ZIP_FILE" "$1" -x "**/bin/*" -x "**/obj/*" > /dev/null
-aws s3 cp "$ZIP_FILE" "s3://$2/Projets/$ZIP_FILE"
+aws s3 cp "$ZIP_FILE" "s3://$2/Projects/$ZIP_FILE"
 rm "$ZIP_FILE"
