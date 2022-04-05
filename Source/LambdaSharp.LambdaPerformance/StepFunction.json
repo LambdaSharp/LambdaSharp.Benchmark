@@ -1,8 +1,8 @@
 {
-    "StartAt": "StartBuild",
+    "StartAt": "BuildProject",
     "States": {
 
-        "StartBuild": {
+        "BuildProject": {
             "Type": "Task",
             "Resource": "arn:${AWS::Partition}:states:::codebuild:startBuild.sync",
             "Parameters": {
@@ -19,7 +19,7 @@
                 "BuildStatus.$": "$.Build.BuildStatus",
                 "BuildId.$": "$.Build.Id"
             },
-            "ResultPath": "$.StartBuild",
+            "ResultPath": "$.BuildProject",
             "Next": "CheckBuildOutcome"
         },
 
@@ -27,41 +27,41 @@
             "Type": "Choice",
             "Choices": [
                 {
-                    "Variable": "$.StartBuild.BuildStatus",
+                    "Variable": "$.BuildProject.BuildStatus",
                     "StringEquals": "SUCCEEDED",
-                    "Next": "GetListOfArtifacts"
+                    "Next": "GetListOfMeasurements"
                 }
             ],
             "Default": "BuildFailed"
         },
 
-        "GetListOfArtifacts": {
+        "GetListOfMeasurements": {
             "Type": "Task",
             "Resource": "arn:aws:states:::lambda:invoke",
             "Parameters": {
                 "FunctionName": "${ListArtifactsFunction}",
                 "Payload": {
-                    "BuildId.$": "$.StartBuild.BuildId"
+                    "BuildId.$": "$.BuildProject.BuildId"
                 }
             },
             "ResultSelector": {
                 "RunSpecs.$": "$.Payload.RunSpecs"
             },
-            "ResultPath": "$.GetListOfArtifacts",
+            "ResultPath": "$.GetListOfMeasurements",
             "Next": "FanOutTests"
         },
 
         "FanOutTests": {
             "Type": "Map",
-            "ItemsPath": "$.GetListOfArtifacts.RunSpecs",
+            "ItemsPath": "$.GetListOfMeasurements.RunSpecs",
             "MaxConcurrency": ${Parallelism},
             "Parameters": {
                 "RunSpec.$": "$$.Map.Item.Value"
             },
             "Iterator": {
-                "StartAt": "RunTest",
+                "StartAt": "RunMeasurement",
                 "States": {
-                    "RunTest": {
+                    "RunMeasurement": {
                         "Type": "Task",
                         "Resource": "arn:aws:states:::lambda:invoke",
                         "Parameters": {
@@ -71,12 +71,18 @@
                         "ResultSelector": {
                             "Success.$": "$.Payload.Success"
                         },
-                        "ResultPath": "$.RunTest",
+                        "ResultPath": "$.RunMeasurement",
                         "End": true
                     }
                 }
             },
             "ResultPath": "$.Functions",
+            "Next": "WaitForMeasurementsToSettle"
+        },
+
+        "WaitForMeasurementsToSettle": {
+            "Type": "Wait",
+            "Seconds": 10,
             "Next": "CombineMeasurements"
         },
 
@@ -87,7 +93,7 @@
                 "FunctionName": "${CombineMeasurementsFunction}",
                 "Payload": {
                     "ProjectPath.$": "$.ProjectPath",
-                    "BuildId.$": "$.StartBuild.BuildId"
+                    "BuildId.$": "$.BuildProject.BuildId"
                 }
             },
             "ResultSelector": {
