@@ -55,12 +55,9 @@ public class MeasurementSummary {
 public class MeasurementSample {
 
     //--- Properties ---
-    public int ColdStartSample { get; internal set; }
-    public int WarmStartSample { get; internal set; }
-    public bool Success { get; set; }
+    public int Sample { get; internal set; }
     public double InitDuration { get; set; }
-    public double UsedDuration { get; set; }
-    public double TotalDuration { get; set; }
+    public List<double> UsedDurations { get; set; } = new();
 }
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
@@ -254,9 +251,39 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // write measurements CSV to S3 bucket
         StringBuilder csv = new();
-        AppendCsvLine(nameof(MeasurementSummary.Project), nameof(MeasurementSummary.Runtime), nameof(MeasurementSummary.Architecture), nameof(MeasurementSummary.Tiered), nameof(MeasurementSummary.Ready2Run), nameof(MeasurementSummary.ZipSize), nameof(MeasurementSummary.MemorySize), nameof(MeasurementSample.ColdStartSample), nameof(MeasurementSample.WarmStartSample), nameof(MeasurementSample.UsedDuration), nameof(MeasurementSample.InitDuration), nameof(MeasurementSample.TotalDuration));
+        List<string> usedDurationColumns = new() {
+            "Used"
+        };
+        for(var i = 1; i <= WarmStartSamplesCount; ++i) {
+            usedDurationColumns.Add($"Used-{i}");
+        }
+        AppendCsvLine(
+            nameof(MeasurementSummary.Project),
+            nameof(MeasurementSummary.Runtime),
+            nameof(MeasurementSummary.Architecture),
+            nameof(MeasurementSummary.Tiered),
+            nameof(MeasurementSummary.Ready2Run),
+            nameof(MeasurementSummary.ZipSize),
+            nameof(MeasurementSummary.MemorySize),
+            nameof(MeasurementSample.Sample),
+            "Runs",
+            "Init",
+            usedDurationColumns
+        );
         foreach(var sample in samples) {
-            AppendCsvLine(summary.Project, summary.Runtime, summary.Architecture, summary.Tiered, summary.Ready2Run, runSpec.ZipSize.ToString(), summary.MemorySize.ToString(), sample.ColdStartSample.ToString(), sample.WarmStartSample.ToString(), sample.UsedDuration.ToString(), sample.InitDuration.ToString(), sample.TotalDuration.ToString());
+            AppendCsvLine(
+                summary.Project,
+                summary.Runtime,
+                summary.Architecture,
+                summary.Tiered,
+                summary.Ready2Run,
+                runSpec.ZipSize.ToString(),
+                summary.MemorySize.ToString(),
+                sample.Sample.ToString(),
+                sample.UsedDurations.Count.ToString(),
+                sample.InitDuration.ToString(),
+                sample.UsedDurations.Select(usedDuration => usedDuration.ToString())
+            );
         }
         await WriteToS3(Path.ChangeExtension(request.RunSpec, extension: null) + "-measurement.csv", csv.ToString());
 
@@ -266,8 +293,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         };
 
         // local functions
-        void AppendCsvLine(string? project, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? coldStartSample, string? warmStartSample, string? usedDuration, string? initDuration, string? totalDuration)
-            => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{coldStartSample},{warmStartSample},{usedDuration},{initDuration},{totalDuration}");
+        void AppendCsvLine(string? project, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? sample, string? runs, string? initDuration, IEnumerable<string> additionalColumns)
+            => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{sample},{runs},{initDuration},{string.Join(",", additionalColumns)}");
 
         async Task WriteToS3(string key, string contents) {
             LogInfo($"Writing measurement file to s3://{BuildBucketName}/{key}");
@@ -309,8 +336,12 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 InvocationType = InvocationType.RequestResponse,
                 LogType = LogType.Tail
             });
-            var result = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
-            if(result.InitDuration == 0.0) {
+            var coldStartResult = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
+            if(
+                (coldStartResult.InitDuration == 0.0)
+                || !string.IsNullOrEmpty(lambdaResponse.FunctionError)
+                || !coldStartResult.UsedDurations.Any()
+            ) {
                 LogInfo($"Lambda invocation did not report a cold-start. Trying again.");
 
                 // invocation didn't cause a cold-start; add an additional run
@@ -319,11 +350,10 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             }
 
             // add cold-start result
-            result.ColdStartSample = coldStartSample;
-            result.WarmStartSample = 0;
-            result.Success = string.IsNullOrEmpty(lambdaResponse.FunctionError);
-            results.Add(result);
-            LogInfo($"Cold-Start: Iteration={coldStartSample}.0, InitDuration={result.InitDuration * 1000.0:0.###}ms, UsedDuration={result.UsedDuration * 1000.0:0.###}ms");
+            coldStartResult.Sample = coldStartSample;
+            results.Add(coldStartResult);
+            var coldStartUsedDuration = coldStartResult.UsedDurations.First();
+            LogInfo($"Cold-Start: Iteration={coldStartSample}.0, InitDuration={coldStartResult.InitDuration:0.###}ms, UsedDuration={coldStartUsedDuration:0.###}ms");
 
             // collect warm-start samples
             for(var warmStartSample = 1; warmStartSample <= warmStartSamplesCount; ++warmStartSample) {
@@ -336,18 +366,20 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                     InvocationType = InvocationType.RequestResponse,
                     LogType = LogType.Tail
                 });
-                result = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
-                if(result.InitDuration > 0.0) {
+                var warmStartResult = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
+                if(
+                    (warmStartResult.InitDuration > 0.0)
+                    || !string.IsNullOrEmpty(lambdaResponse.FunctionError)
+                    || !warmStartResult.UsedDurations.Any()
+                ) {
                     LogInfo($"Lambda invocation reported a cold-start. Aborting warm sampling.");
                     break;
                 }
 
                 // add warm-start result
-                result.ColdStartSample = coldStartSample;
-                result.WarmStartSample = warmStartSample;
-                result.Success = string.IsNullOrEmpty(lambdaResponse.FunctionError);
-                results.Add(result);
-                LogInfo($"Warm-Start: Iteration={coldStartSample}.{warmStartSample}, UsedDuration={result.UsedDuration * 1000.0:0.###}ms");
+                var warmStartUsedDuration = warmStartResult.UsedDurations.First();
+                coldStartResult.UsedDurations.Add(warmStartUsedDuration);
+                LogInfo($"Warm-Start: Iteration={coldStartSample}.{warmStartSample}, UsedDuration={warmStartUsedDuration:0.###}ms");
             }
         }
         return results;
@@ -388,20 +420,17 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var decodedLogResult = Encoding.UTF8.GetString(Convert.FromBase64String(logResult));
         var match = _lambdaReportPattern.Match(decodedLogResult);
         if(match.Success) {
-            var usedDuration = double.Parse(match.Groups["UsedDuration"].Value) / 1000.0;
+            var usedDuration = double.Parse(match.Groups["UsedDuration"].Value);
             var initDuration = match.Groups["InitDuration"].Success
-                ? double.Parse(match.Groups["InitDuration"].Value) / 1000.0
+                ? double.Parse(match.Groups["InitDuration"].Value)
                 : 0.0;
             return new() {
-                UsedDuration = usedDuration,
                 InitDuration = initDuration,
-                TotalDuration = usedDuration + initDuration
+                UsedDurations = { usedDuration }
             };
         }
         return new() {
-            UsedDuration = 0.0,
-            InitDuration = 0.0,
-            TotalDuration = 0.0
+            InitDuration = 0.0
         };
     }
 }

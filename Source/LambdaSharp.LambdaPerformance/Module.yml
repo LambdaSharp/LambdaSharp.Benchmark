@@ -83,7 +83,7 @@ Items:
     Type: Number
     Default: 10
     MinValue: 1
-    MaxValue: 1000
+    MaxValue: 100
 
   ###
   # Build Project
