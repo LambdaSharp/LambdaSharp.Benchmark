@@ -73,9 +73,9 @@ Items:
     Label: Number of warm-start measurement samples to collect per project and configuration
     Description: Number of warm-start samples
     Type: Number
-    Default: 50
+    Default: 25
     MinValue: 1
-    MaxValue: 500
+    MaxValue: 100
 
   - Parameter: Parallelism
     Section: Measurement Configuration

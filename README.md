@@ -1,29 +1,41 @@
-# AWS Lambda Performance for C#, Python, and NodeJS
+# LambdaPerformance
 
-Various implementations of a simple Lambda function to test performance.
+This module is used to measure .NET Lambda functions with different compilation and deployment options. The measurements are then collected into a CSV file for analysis.
 
-This is the outcome of a quick and dirty performance test performed on 2016-12-12 to compare the performance 
-of various AWS lambda engines.
-All tests were done by sending the string `"foo"` as input to each respective function using the AWS console. 
-The test setup extremely simple: repeatedly keep clicking the `Test` button in the AWS Lambda console and select 
-a representative log statement.
+## Projects
+1. [Minimal](Projects/Minimal/)
+1. [AwsSdk](Projects/AwsSdk/)
+1. [NewtonsoftJson](Projects/NewtonsoftJson/)
+1. [SystemTextJson](Projects/SystemTextJson/)
+1. [SourceGeneratorJson](Projects/SourceGeneratorJson/)
 
-The functions were deployed in `us-east-1` with their respective default settings. 
-The C# function was deployed using `dotnet lambda deploy-function`. 
-The Node and Python functions were deployed using the `HelloWorld` sample code for each respective language and 
-changing the implementation so a simple string would be accepted and converted to uppercase.
+## Reports
+1. [Tiered Compilation and ReadyToRun Options](Docs/Tiered-Ready2Run-Options.md)
+1. TODO: .NET 6 vs. .NET 3.1
+1. TODO: ARM64 vs. x86-64
 
-**Python**
-```
-REPORT Duration: 0.20 ms    Billed Duration: 100 ms     Memory Size: 128 MB    Max Memory Used: 15 MB
-```
+## Measurements
 
-**Javascript/NodeJS**
-```
-REPORT Duration: 0.27 ms    Billed Duration: 100 ms     Memory Size: 128 MB    Max Memory Used: 16 MB
-```
+The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1AQ-DJQ55HbLpSG5biPn80oPfTnm9YlHCqNyXNxUf-0U/edit?usp=sharing).
 
-**C#**
-```
-REPORT Duration: 0.85 ms    Billed Duration: 100 ms     Memory Size: 128 MB    Max Memory Used: 42 MB
-```
+1. [Minimal](Data/Minimal%20%5Bus-west-2%5D%20(2022-04-05).csv)
+1. [AwsSdk](Data/AwsSdk%20%5Bus-west-2%5D%20(2022-04-05).csv)
+1. [NewtonsoftJson](Data/NewtonsoftJson%20%5Bus-west-2%5D%20(2022-04-05).csv)
+1. [SystemTextJson](Data/SystemTextJson%20%5Bus-west-2%5D%20(2022-04-05).csv)
+1. [SourceGeneratorJson](Data/SourceGeneratorJson%20%5Bus-west-2%5D%20(2022-04-05).csv)
+
+## License
+
+> Copyright (c) 2018-2022 LambdaSharp (λ#)
+>
+> Licensed under the Apache License, Version 2.0 (the "License");
+> you may not use this file except in compliance with the License.
+> You may obtain a copy of the License at
+>
+> http://www.apache.org/licenses/LICENSE-2.0
+>
+> Unless required by applicable law or agreed to in writing, software
+> distributed under the License is distributed on an "AS IS" BASIS,
+> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+> See the License for the specific language governing permissions and
+> limitations under the License.
