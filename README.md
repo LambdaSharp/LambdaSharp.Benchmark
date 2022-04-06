@@ -2,6 +2,8 @@
 
 This module is used to measure .NET Lambda functions with different compilation and deployment options. The measurements are then collected into a CSV file for analysis.
 
+The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1AQ-DJQ55HbLpSG5biPn80oPfTnm9YlHCqNyXNxUf-0U/edit?usp=sharing).
+
 ## Projects
 1. [Minimal](Projects/Minimal/)
 1. [AwsSdk](Projects/AwsSdk/)
@@ -15,8 +17,6 @@ This module is used to measure .NET Lambda functions with different compilation 
 1. TODO: ARM64 vs. x86-64
 
 ## Measurements
-
-The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1AQ-DJQ55HbLpSG5biPn80oPfTnm9YlHCqNyXNxUf-0U/edit?usp=sharing).
 
 1. [Minimal](Data/Minimal%20%5Bus-west-2%5D%20(2022-04-05).csv)
 1. [AwsSdk](Data/AwsSdk%20%5Bus-west-2%5D%20(2022-04-05).csv)
