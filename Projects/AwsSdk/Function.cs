@@ -1,9 +1,8 @@
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using Amazon.S3;
 
-namespace LambdaPerformance.Minimal {
+namespace LambdaPerformance.AwsSdk {
 
     public sealed class Function {
 

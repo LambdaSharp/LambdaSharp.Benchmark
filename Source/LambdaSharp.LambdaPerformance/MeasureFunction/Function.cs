@@ -56,7 +56,7 @@ public class MeasurementSample {
 
     //--- Properties ---
     public int Sample { get; internal set; }
-    public double InitDuration { get; set; }
+    public double? InitDuration { get; set; }
     public List<double> UsedDurations { get; set; } = new();
 }
 
@@ -174,7 +174,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 PackageType = PackageType.Zip,
                 MemorySize = runSpec.MemorySize,
                 FunctionName = functionName,
-                Description = $"Measuring {runSpec.ZipFile} (Memory: {runSpec.MemorySize}, Arch: {runSpec.Architecture}, Runtime: {runSpec.Runtime}, Tiered: {runSpec.Tiered}, Ready2Run: {runSpec.Ready2Run})",
+                Description = $"Measuring {runSpec.ZipFile} (Memory: {runSpec.MemorySize})",
                 Code = new() {
                     S3Bucket = BuildBucketName,
                     S3Key = runSpec.ZipFile
@@ -184,27 +184,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             });
 
             // conduct cold-start performance measurement
-            try {
-                samples = await MeasureAsync(functionName, runSpec.Payload, ColdStartSamplesCount, WarmStartSamplesCount);
-            } catch(Exception e) {
-                LogErrorAsInfo(e, "Lambda invocation failed; aborting measurement check");
-
-                // TODO: should we let the exception bubble up instead?
-
-                // return error response
-                return new() {
-                    Success = false,
-                    Message = "Performance test failed (see log for more details)"
-                };
-            }
-        } catch(Exception e) {
-            LogErrorAsInfo(e, "Lambda creation failed; aborting measurement check");
-
-            // return error response
-            return new() {
-                Success = false,
-                Message = "Performance test failed (see log for more details)"
-            };
+            samples = await MeasureAsync(functionName, runSpec.Payload, ColdStartSamplesCount, WarmStartSamplesCount);
         } finally {
 
             // wait to ensure log groups have been created
@@ -215,7 +195,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 LogInfo($"Delete Lambda function: {functionName}");
                 await LambdaClient.DeleteFunctionAsync(functionName);
             } catch(Exception e) {
-                LogErrorAsInfo(e, $"Unable to delete function: {functionName}");
+                LogErrorAsWarning(e, $"Unable to delete function: {functionName}");
             }
 
             // delete log group, which is automatically created by Lambda invocation
@@ -236,7 +216,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // create result file
         MeasurementSummary summary = new() {
-            Project = Path.ChangeExtension(request.RunSpec, extension: null),
+            Project = Path.GetFileNameWithoutExtension(request.RunSpec),
             Runtime = runSpec.Runtime,
             Architecture = runSpec.Architecture,
             MemorySize = runSpec.MemorySize,
@@ -281,7 +261,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 summary.MemorySize.ToString(),
                 sample.Sample.ToString(),
                 sample.UsedDurations.Count.ToString(),
-                sample.InitDuration.ToString(),
+                sample.InitDuration?.ToString(),
                 sample.UsedDurations.Select(usedDuration => usedDuration.ToString())
             );
         }
@@ -308,23 +288,36 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     private async Task<List<MeasurementSample>> MeasureAsync(string functionName, string payload, int coldStartSamplesCount, int warmStartSamplesCount) {
         var results = new List<MeasurementSample>();
-
-        // wait for Lambda creation to complete
-        await WaitForFunctionToBeReady(functionName);
+        var failureCount = 0;
 
         // collect cold-start samples
         for(var coldStartSample = 1; coldStartSample <= coldStartSamplesCount; ++coldStartSample) {
             LogInfo($"Iteration {coldStartSample}.0");
 
             // update Lambda function configuration to force a cold start
-            await LambdaClient.UpdateFunctionConfigurationAsync(new() {
-                FunctionName = functionName,
-                Environment = new() {
-                    Variables = {
-                        ["COLDSTART_RUN"] = coldStartSample.ToString()
+            try {
+                var updateConfigurationResponse = await LambdaClient.UpdateFunctionConfigurationAsync(new() {
+                    FunctionName = functionName,
+                    Environment = new() {
+                        Variables = {
+                            ["COLDSTART_RUN"] = coldStartSample.ToString()
+                        }
                     }
+                });
+                if(updateConfigurationResponse.LastUpdateStatus == LastUpdateStatus.Failed) {
+                    throw new ApplicationException("Unable to update Lambda configuration");
                 }
-            });
+            } catch(Amazon.Lambda.Model.ResourceConflictException) {
+
+                // Lambda function is not yet ready to be updated; wait and try again
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                await WaitForFunctionToBeReady(functionName);
+                ++coldStartSamplesCount;
+                if(++failureCount >= 10) {
+                    throw new ApplicationException("Too many failed attempts updating configuration");
+                }
+                continue;
+            }
 
             // wait for Lambda configuration changes to propagate
             await WaitForFunctionToBeReady(functionName);
@@ -336,16 +329,21 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 InvocationType = InvocationType.RequestResponse,
                 LogType = LogType.Tail
             });
+            if(!string.IsNullOrEmpty(lambdaResponse.FunctionError)) {
+                throw new ApplicationException($"Lambda function start-up failed: {lambdaResponse.FunctionError}");
+            }
             var coldStartResult = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
             if(
-                (coldStartResult.InitDuration == 0.0)
-                || !string.IsNullOrEmpty(lambdaResponse.FunctionError)
+                (coldStartResult.InitDuration is null)
                 || !coldStartResult.UsedDurations.Any()
             ) {
                 LogInfo($"Lambda invocation did not report a cold-start. Trying again.");
 
                 // invocation didn't cause a cold-start; add an additional run
                 ++coldStartSamplesCount;
+                if(++failureCount >= 10) {
+                    throw new ApplicationException("Too many failed cold-starts");
+                }
                 continue;
             }
 
@@ -367,12 +365,15 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                     LogType = LogType.Tail
                 });
                 var warmStartResult = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
+                if(!string.IsNullOrEmpty(lambdaResponse.FunctionError)) {
+                    throw new ApplicationException($"Lambda function invocation failed: {lambdaResponse.FunctionError}");
+                }
                 if(
-                    (warmStartResult.InitDuration > 0.0)
+                    (warmStartResult.InitDuration is not null)
                     || !string.IsNullOrEmpty(lambdaResponse.FunctionError)
                     || !warmStartResult.UsedDurations.Any()
                 ) {
-                    LogInfo($"Lambda invocation reported a cold-start. Aborting warm sampling.");
+                    LogInfo($"Lambda invocation reported a cold-start. Aborting warm-start sampling.");
                     break;
                 }
 
@@ -381,6 +382,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 coldStartResult.UsedDurations.Add(warmStartUsedDuration);
                 LogInfo($"Warm-Start: Iteration={coldStartSample}.{warmStartSample}, UsedDuration={warmStartUsedDuration:0.###}ms");
             }
+
+            // reset failure count after successfully measuring the function
+            failureCount = 0;
         }
         return results;
     }
@@ -421,16 +425,14 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var match = _lambdaReportPattern.Match(decodedLogResult);
         if(match.Success) {
             var usedDuration = double.Parse(match.Groups["UsedDuration"].Value);
-            var initDuration = match.Groups["InitDuration"].Success
+            double? initDuration = match.Groups["InitDuration"].Success
                 ? double.Parse(match.Groups["InitDuration"].Value)
-                : 0.0;
+                : null;
             return new() {
                 InitDuration = initDuration,
                 UsedDurations = { usedDuration }
             };
         }
-        return new() {
-            InitDuration = 0.0
-        };
+        return new();
     }
 }
