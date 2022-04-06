@@ -43,6 +43,7 @@ public class MeasurementSummary {
 
     //--- Properties ---
     public string? Project { get; set; }
+    public string? Build { get; set; }
     public string? Runtime { get; set; }
     public string? Architecture { get; set; }
     public int MemorySize { get; set; }
@@ -216,7 +217,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // create result file
         MeasurementSummary summary = new() {
-            Project = Path.GetFileNameWithoutExtension(request.RunSpec),
+            Project = runSpec.Project,
+            Build = Path.GetFileNameWithoutExtension(request.RunSpec),
             Runtime = runSpec.Runtime,
             Architecture = runSpec.Architecture,
             MemorySize = runSpec.MemorySize,
@@ -239,6 +241,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
         AppendCsvLine(
             nameof(MeasurementSummary.Project),
+            nameof(MeasurementSummary.Build),
             nameof(MeasurementSummary.Runtime),
             nameof(MeasurementSummary.Architecture),
             nameof(MeasurementSummary.Tiered),
@@ -253,6 +256,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         foreach(var sample in samples) {
             AppendCsvLine(
                 summary.Project,
+                summary.Build,
                 summary.Runtime,
                 summary.Architecture,
                 summary.Tiered,
@@ -273,8 +277,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         };
 
         // local functions
-        void AppendCsvLine(string? project, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? sample, string? runs, string? initDuration, IEnumerable<string> additionalColumns)
-            => csv.AppendLine($"{project},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{sample},{runs},{initDuration},{string.Join(",", additionalColumns)}");
+        void AppendCsvLine(string? project, string? build, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? sample, string? runs, string? initDuration, IEnumerable<string> additionalColumns)
+            => csv.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{sample},{runs},{initDuration},{string.Join(",", additionalColumns)}");
 
         async Task WriteToS3(string key, string contents) {
             LogInfo($"Writing measurement file to s3://{BuildBucketName}/{key}");
