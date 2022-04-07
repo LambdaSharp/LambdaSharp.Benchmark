@@ -1,4 +1,7 @@
-project.lock.json
+# Visual Studio Code
+.vscode
+debug.log
+
+# .NET Core
 bin
 obj
-.vscode
