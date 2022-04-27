@@ -237,7 +237,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             "Used"
         };
         for(var i = 1; i <= WarmStartSamplesCount; ++i) {
-            usedDurationColumns.Add($"Used-{i}");
+            usedDurationColumns.Add($"Used-{i:00}");
         }
         AppendCsvLine(
             nameof(MeasurementSummary.Project),
@@ -262,7 +262,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 summary.Tiered,
                 summary.Ready2Run,
                 runSpec.ZipSize.ToString(),
-                summary.MemorySize.ToString(),
+                $"{summary.MemorySize}MB",
                 sample.Sample.ToString(),
                 sample.UsedDurations.Count.ToString(),
                 sample.InitDuration?.ToString(),
