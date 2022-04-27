@@ -95,7 +95,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
 
         // write combined CSV file back to be co-located with original project file
-        var resultPath = Path.ChangeExtension(request.ProjectPath, extension: null) + $"-{buildId}.csv";
+        var resultPath = $"Reports/{Path.GetFileNameWithoutExtension(request.ProjectPath)} ({DateTime.UtcNow:yyyy-MM-dd}) [{buildId}].csv";
         LogInfo($"Writing combined measurement file to s3://{resultPath}");
         await S3Client.PutObjectAsync(new() {
             BucketName = _buildBucketName,
