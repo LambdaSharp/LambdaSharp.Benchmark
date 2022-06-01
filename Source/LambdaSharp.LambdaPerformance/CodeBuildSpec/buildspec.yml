@@ -21,6 +21,7 @@ phases:
     on-failure: ABORT
     commands:
       - chmod +x build.sh
+      - sed -i -e 's/\r$//' build.sh
       - ./build.sh
 
 artifacts:
