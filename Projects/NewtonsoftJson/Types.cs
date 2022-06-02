@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace LambdaPerformance.NewtonsoftJson {
+namespace Benchmark.NewtonsoftJson {
 
     public class User {
 

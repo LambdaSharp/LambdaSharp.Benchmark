@@ -1,7 +1,7 @@
 using System.IO;
 using System.Threading.Tasks;
 
-namespace LambdaPerformance.Minimal {
+namespace Benchmark.Minimal {
 
     public sealed class Function {
 
