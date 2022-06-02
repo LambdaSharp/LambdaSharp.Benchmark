@@ -1,4 +1,4 @@
-namespace LambdaSharp.LambdaPerformance.WatchBucketFunction;
+namespace LambdaSharp.Benchmark.WatchBucketFunction;
 
 using Amazon.Lambda.S3Events;
 using Amazon.StepFunctions;

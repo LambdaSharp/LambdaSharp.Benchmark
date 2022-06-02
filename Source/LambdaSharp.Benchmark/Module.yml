@@ -1,4 +1,4 @@
-Module: LambdaSharp.LambdaPerformance
+Module: LambdaSharp.Benchmark
 Using:
   - Module: LambdaSharp.S3.IO:0.8@lambdasharp
 Items:
@@ -117,7 +117,7 @@ Items:
       - Resource: Role
         Type: AWS::IAM::Role
         Properties:
-          Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
+          Description: IAM Role for CodeBuild used by LambdaSharp.Benchmark
           AssumeRolePolicyDocument:
               Version: '2012-10-17'
               Statement:
@@ -179,7 +179,7 @@ Items:
       - Resource: StepFunctionRole
         Type: AWS::IAM::Role
         Properties:
-          Description: IAM Role for CodeBuild used by LambdaSharp.LambdaPerformance
+          Description: IAM Role for CodeBuild used by LambdaSharp.Benchmark
           AssumeRolePolicyDocument:
               Version: '2012-10-17'
               Statement:

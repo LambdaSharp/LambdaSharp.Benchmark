@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-namespace LambdaSharp.LambdaPerformance.CombineMeasurementsFunction;
+namespace LambdaSharp.Benchmark.CombineMeasurementsFunction;
 
 using System.Text;
 using Amazon.S3;

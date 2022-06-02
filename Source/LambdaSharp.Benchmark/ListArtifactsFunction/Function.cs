@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-namespace LambdaSharp.LambdaPerformance.ListArtifactsFunction;
+namespace LambdaSharp.Benchmark.ListArtifactsFunction;
 
 using Amazon.S3;
 using LambdaSharp;
-using LambdaSharp.LambdaPerformance.Common;
+using LambdaSharp.Benchmark.Common;
 
 public class FunctionRequest {
 

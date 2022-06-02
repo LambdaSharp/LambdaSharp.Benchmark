@@ -4,14 +4,19 @@
     <Deterministic>true</Deterministic>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
-    <RootNamespace>LambdaSharp.LambdaPerformance.CombineMeasurementsFunction</RootNamespace>
+    <RootNamespace>LambdaSharp.Benchmark.ListArtifactsFunction</RootNamespace>
     <Nullable>enable</Nullable>
     <NoWarn>CS1998</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ArgumentAssert" Version="1.0.0"/>
     <PackageReference Include="AWSSDK.S3" Version="3.7.8.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ArgumentAssert" Version="1.0.0"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Common/**" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Condition="'$(LAMBDASHARP)'==''" Include="LambdaSharp" Version="0.8.4.*"/>

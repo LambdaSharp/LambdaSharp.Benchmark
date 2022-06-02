@@ -1,8 +1,8 @@
-# LambdaPerformance
+# LambdaSharp.Benchmark
 
-This module is used to measure .NET Lambda functions with different compilation and deployment options. The measurements are then collected into a CSV file for analysis.
+This module is used to benchmark .NET Lambda functions with different compilation and deployment options. The measurements are then collected into a CSV file for analysis.
 
-The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1AQ-DJQ55HbLpSG5biPn80oPfTnm9YlHCqNyXNxUf-0U/edit?usp=sharing).
+The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1ULCEIbXPXFWzv8m-FMnh6b0T4acgZDavJxwY7-NKGdo/edit?usp=sharing).
 
 ## Projects
 1. [Minimal](Projects/Minimal/)

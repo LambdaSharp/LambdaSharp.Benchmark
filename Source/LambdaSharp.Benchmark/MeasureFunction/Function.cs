@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-namespace LambdaSharp.LambdaPerformance.DeployFunction;
+namespace LambdaSharp.Benchmark.DeployFunction;
 
 using Amazon.Lambda;
 using Amazon.CloudWatchLogs;
@@ -24,7 +24,7 @@ using Amazon.S3;
 using LambdaSharp;
 using System.Text;
 using System.Text.RegularExpressions;
-using LambdaSharp.LambdaPerformance.Common;
+using LambdaSharp.Benchmark.Common;
 
 public class FunctionRequest {
 

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-namespace LambdaSharp.LambdaPerformance.Common;
+namespace LambdaSharp.Benchmark.Common;
 
 public record RunSpec(
     string? Project,
