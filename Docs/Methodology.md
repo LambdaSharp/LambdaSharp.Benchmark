@@ -75,7 +75,7 @@ Each compiled function is then deployed as an AWS Lambda function in `us-west-2`
 
 ## Execution
 
-Each deployed Lambda is forced to execute 20 cold starts by modifying its environment variables. Each cold start is then followed by 25 warm invocations.
+Each deployed Lambda is forced to execute 100 cold starts by modifying its environment variables. Each cold start is then followed by 25 warm invocations.
 
 Measurements are obtained by parsing the `REPORT` statement from the returned CloudWatch log.
 ```
