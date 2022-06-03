@@ -7,39 +7,32 @@ Items:
   # Parameters
   ###
 
-  - Parameter: ProjectNames
-    Scope: ListArtifactsFunction
-    Section: Measurement Configuration
-    Label: List of projects to measure (leave blank to measure all projects)
-    Description: List of projects to measure (leave blank to measure all projects)
-    Default: ""
-
   - Parameter: MemorySizes
     Scope: ListArtifactsFunction
-    Section: Measurement Configuration
-    Label: List of memory sizes to measure
-    Description: List of memory sizes to measure
+    Section: Benchmark Configuration
+    Label: List of memory sizes to benchmark
+    Description: List of memory sizes to benchmark
     Default: 128,256,512,1024,1769
 
   - Parameter: Runtimes
     Scope: ListArtifactsFunction
-    Section: Measurement Configuration
-    Label: List of runtimes to measure
-    Description: List of runtimes to measure
+    Section: Benchmark Configuration
+    Label: List of runtimes to benchmark
+    Description: List of runtimes to benchmark
     Default: dotnetcore3.1,dotnet6
 
   - Parameter: Architectures
     Scope: ListArtifactsFunction
-    Section: Measurement Configuration
-    Label: List of architectures to measure
-    Description: List of architectures to measure
+    Section: Benchmark Configuration
+    Label: List of architectures to benchmark
+    Description: List of architectures to benchmark
     Default: arm64,x86_64
 
   - Parameter: TieredOption
     Scope: ListArtifactsFunction
-    Section: Measurement Configuration
-    Label: Use tiered compilation for measurement
-    Description: Use tiered compilation for measurement
+    Section: Benchmark Configuration
+    Label: Use tiered compilation for benchmark
+    Description: Use tiered compilation for benchmark
     AllowedValues:
       - "no"
       - "yes"
@@ -48,9 +41,9 @@ Items:
 
   - Parameter: Ready2RunOption
     Scope: ListArtifactsFunction
-    Section: Measurement Configuration
-    Label: Use ready2run for measurement
-    Description: Use ready2run for measurement
+    Section: Benchmark Configuration
+    Label: Use ready2run for benchmark
+    Description: Use ready2run for benchmark
     AllowedValues:
       - "no"
       - "yes"
@@ -59,8 +52,8 @@ Items:
 
   - Parameter: ColdStartSamplesCount
     Scope: MeasureFunction
-    Section: Measurement Configuration
-    Label: Number of cold-start measurement samples to collect per project and configuration
+    Section: Benchmark Configuration
+    Label: Number of cold-start samples to collect per project and configuration
     Description: Number of cold-start samples
     Type: Number
     Default: 20
@@ -69,8 +62,8 @@ Items:
 
   - Parameter: WarmStartSamplesCount
     Scope: MeasureFunction
-    Section: Measurement Configuration
-    Label: Number of warm-start measurement samples to collect per project and configuration
+    Section: Benchmark Configuration
+    Label: Number of warm-start samples to collect per project and configuration
     Description: Number of warm-start samples
     Type: Number
     Default: 25
@@ -78,8 +71,8 @@ Items:
     MaxValue: 100
 
   - Parameter: Parallelism
-    Section: Measurement Configuration
-    Label: Number of simultaneous measurements to run
+    Section: Benchmark Configuration
+    Label: Number of simultaneous benchmarks to run
     Type: Number
     Default: 10
     MinValue: 1
@@ -228,7 +221,7 @@ Items:
     Timeout: 900
 
   - Resource: FunctionPermissions
-    Description: Permissions required to manage the Lambda function to measure
+    Description: Permissions required to manage the Lambda function to benchmark
     Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Module::Id}-Test-*
     Allow:
       - lambda:CreateFunction
@@ -238,13 +231,13 @@ Items:
       - lambda:GetFunction
 
   - Resource: LambdaRolePermissions
-    Description: IAM role used by the Lambda function being measured
+    Description: IAM role used by the Lambda function being benchmarked
     Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaDefaultRole"
     Allow:
       - iam:PassRole
 
   - Resource: FunctionLogPermissions
-    Description: Permissions required to delete the CloudWatch logs created by the measured Lambda function
+    Description: Permissions required to delete the CloudWatch logs created by the benchmarked Lambda function
     Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
     Allow:
       - logs:DeleteLogGroup
@@ -271,6 +264,10 @@ Items:
       - s3:PutObject
       - s3:DeleteObject
 
+  - Variable: BuildBucketName
+    Scope: public
+    Value: !Ref BuildBucket
+
   - Resource: EmptyBuildBucket
     Description: Ensure the build bucket is empty on stack deletion
     Type: LambdaSharp::S3::EmptyBucket
@@ -278,7 +275,7 @@ Items:
       Bucket: !Ref BuildBucket
 
   - Function: WatchBucketFunction
-    Description: Watch build bucket for new Lambda zip packages to kick-off a measurement
+    Description: Watch build bucket for new Lambda zip packages to kick-off a benchmark
     Memory: 1769
     Timeout: 30
     Sources:

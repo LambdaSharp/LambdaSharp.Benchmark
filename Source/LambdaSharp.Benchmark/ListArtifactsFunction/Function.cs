@@ -48,7 +48,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private string[]? _architectures;
     private string[]? _runtimes;
     private int[]? _memoryConfigurations;
-    private string[]? _projectNames;
 
     //--- Constructors ---
     public Function() : base(new LambdaSharp.Serialization.LambdaSystemTextJsonSerializer()) { }
@@ -58,7 +57,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private IAmazonS3 S3Client => _s3Client ?? throw new InvalidOperationException();
     public IEnumerable<string> Architectures => _architectures ?? throw new InvalidOperationException();
     public IEnumerable<int> MemorySizes => _memoryConfigurations ?? throw new InvalidOperationException();
-    public IEnumerable<string> ProjectNames => _projectNames ?? throw new InvalidOperationException();
     public IEnumerable<string> Runtimes => _runtimes ?? throw new InvalidOperationException();
     private YesNoBothOption TieredCompilation { get; set; }
     private YesNoBothOption Ready2RunCompilation { get; set; }
@@ -71,7 +69,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         _architectures = config.ReadText("Architectures").Split(",", StringSplitOptions.RemoveEmptyEntries);
         _runtimes = config.ReadText("Runtimes").Split(",", StringSplitOptions.RemoveEmptyEntries);
         _memoryConfigurations = config.ReadText("MemorySizes").Split(",", StringSplitOptions.RemoveEmptyEntries).Select(value => int.Parse(value)).ToArray();
-        _projectNames = config.ReadText("ProjectNames").Split(",", StringSplitOptions.RemoveEmptyEntries);
         TieredCompilation = Enum.Parse<YesNoBothOption>(config.ReadText("TieredOption"), ignoreCase: true);
         Ready2RunCompilation = Enum.Parse<YesNoBothOption>(config.ReadText("Ready2RunOption"), ignoreCase: true);
 
@@ -114,14 +111,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var tieredCompilationDidNotMatch = 0;
         var ready2RunDidNotMatch = 0;
         foreach(var runSpec in runSpecs) {
-
-            // check if requested project settings are part of the measurements configuration
-            if(ProjectNames.Any() && !ProjectNames.Contains(runSpec.Project)) {
-                ++projectDidNotMatch;
-
-                // skip this run-spec
-                continue;
-            }
             if(!Runtimes.Contains(runSpec.Runtime)) {
                 ++runtimeDidNotMatch;
 
