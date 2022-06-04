@@ -1,7 +1,7 @@
 // NOTE (2022-06-03, bjorg): adjusted from https://aws.amazon.com/blogs/compute/introducing-the-net-6-runtime-for-aws-lambda/
 
 using Amazon.S3;
-using Benchmark.MinimalApi;
+using Benchmark.SampleMinimalApi;
 
 var builder = WebApplication.CreateBuilder(args);
 

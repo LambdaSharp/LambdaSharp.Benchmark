@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Benchmark.MinimalApi {
+namespace Benchmark.SampleMinimalApi {
 
     public class User {
 

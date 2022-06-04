@@ -6,7 +6,7 @@ The _Minimal API_ project uses the ASP.NET Core minimal APIs as a Lambda functio
 
 ```csharp
 using Amazon.S3;
-using Benchmark.MinimalApi;
+using Benchmark.SampleMinimalApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
