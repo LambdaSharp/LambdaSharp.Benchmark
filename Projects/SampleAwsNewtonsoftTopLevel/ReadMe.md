@@ -1,8 +1,6 @@
 # Sample AWS Top-Level Project using Newtonsoft JSON.NET
 
-TODO: The _Minimal Top-Level_ project consists of the absolute least amount of code required by an invocable Lambda function using top-level statements.
-
-The purpose of this project is to establish a baseline for other .NET Lambda functions. Measurements of this Lambda function represent the lower bound of the AWS Lambda runtime for .NET projects using top-level statements.
+The project uses top-level statements, an AWS client, and the Newtonsoft JSON.NET serializer.
 
 ## Code
 
