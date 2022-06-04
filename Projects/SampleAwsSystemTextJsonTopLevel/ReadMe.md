@@ -1,4 +1,4 @@
-# Sample AWS Top-Level Project using Newtonsoft JSON.NET
+# Sample AWS Top-Level Project using System.Text.Json
 
 TODO: The _Minimal Top-Level_ project consists of the absolute least amount of code required by an invocable Lambda function using top-level statements.
 
