@@ -2,8 +2,9 @@ using System.IO;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Amazon.Lambda.Core;
+using Amazon.Lambda.Serialization.SystemTextJson;
 
-[assembly:LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.SourceGeneratorLambdaJsonSerializer<Benchmark.SourceGeneratorJson.FunctionSerializerContext>))]
+[assembly:LambdaSerializer(typeof(SourceGeneratorLambdaJsonSerializer<Benchmark.SourceGeneratorJson.FunctionSerializerContext>))]
 
 namespace Benchmark.SourceGeneratorJson {
 
