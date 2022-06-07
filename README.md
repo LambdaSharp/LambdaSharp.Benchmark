@@ -5,24 +5,50 @@ This module is used to benchmark .NET Lambda functions with different compilatio
 The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1ULCEIbXPXFWzv8m-FMnh6b0T4acgZDavJxwY7-NKGdo/edit?usp=sharing).
 
 ## Projects
-1. [Minimal](Projects/Minimal/)
-1. [AwsSdk](Projects/AwsSdk/)
-1. [NewtonsoftJson](Projects/NewtonsoftJson/)
-1. [SystemTextJson](Projects/SystemTextJson/)
-1. [SourceGeneratorJson](Projects/SourceGeneratorJson/)
+1. [AwsSdk](Projects/AwsSdk/): benchmark using AWS .NET SDK
+1. [Minimal](Projects/Minimal/): minimal baseline project
+1. [NewtonsoftJson](Projects/NewtonsoftJson/): benchmark using Newtonsoft JSON.NET
+1. [SampleAwsNewtonsoftTopLevel](Projects/SampleAwsNewtonsoftTopLevel/)
+1. [SampleAwsSystemTextJsonTopLevel](Projects/SampleAwsSystemTextJsonTopLevel/)
+1. [SampleMinimalApi](Projects/SampleMinimalApi/)
+1. [SourceGeneratorJson](Projects/SourceGeneratorJson/): benchmark using .NET 6+ source generators for JSON parsing
+1. [SystemTextJson](Projects/SystemTextJson/): benchmark using System.Text.Json
+
+## Benchmark Results (CSV)
+
+1. [AwsSdk](Data/AwsSdk%20(2022-06-02).csv)
+1. [Minimal](Data/Minimal%20(2022-06-02).csv)
+1. [NewtonsoftJson](Data/NewtonsoftJson%20(2022-06-02).csv)
+1. [SampleAwsNewtonsoftTopLevel](Data/SampleAwsNewtonsoftTopLevel%20(2022-06-03).csv)
+1. TODO: [SampleAwsSystemTextJsonTopLevel](Data)
+1. [SampleMinimalApi](Data/SampleMinimalApi%20(2022-06-03).csv)
+1. [SourceGeneratorJson](Data/SourceGeneratorJson%20(2022-06-02).csv)
+1. [SystemTextJson](Data/SystemTextJson%20(2022-06-02).csv)
 
 ## Reports
-1. [Tiered Compilation and ReadyToRun Options](Docs/Tiered-Ready2Run-Options.md)
-1. TODO: .NET 6 vs. .NET 3.1
-1. TODO: ARM64 vs. x86-64
+1. TODO: .NET 6 vs. .NET Core 3.1
+    1. .NET 6
+        1. [Tiered Compilation and ReadyToRun Options](Docs/Tiered-Ready2Run-Options.md)
+        1. TODO: ARM64 vs. x86-64
+        1. TODO: Newtonsoft vs. System.Text.Json vs. Source Generators
+        1. TODO: Function vs. Custom Runtime vs. Top-Level Statements
+    1. .NET Core 3.1
 
-## Measurements
+## Using LambdaSharp.Benchmark
 
-1. [Minimal](Data/Minimal%20%5Bus-west-2%5D%20(2022-04-05).csv)
-1. [AwsSdk](Data/AwsSdk%20%5Bus-west-2%5D%20(2022-04-05).csv)
-1. [NewtonsoftJson](Data/NewtonsoftJson%20%5Bus-west-2%5D%20(2022-04-05).csv)
-1. [SystemTextJson](Data/SystemTextJson%20%5Bus-west-2%5D%20(2022-04-05).csv)
-1. [SourceGeneratorJson](Data/SourceGeneratorJson%20%5Bus-west-2%5D%20(2022-04-05).csv)
+TODO: how to deploy and analyze a project
+
+[Install LambdaSharp tooling and create a deployment tier.](https://lambdasharp.net)
+
+Deploy the LambdaSharp.Benchmark module to your AWS account.
+```bash
+lash deploy LambdaSharp.Benchmark@lambdasharp
+```
+
+Use the `measure.sh` script to package your project and upload it to the benchmarking S3 bucket.
+```bash
+measure.sh <PROJECT-TO-MEASURE> <NAME-OF-S3-BUCKET>
+```
 
 ## License
 

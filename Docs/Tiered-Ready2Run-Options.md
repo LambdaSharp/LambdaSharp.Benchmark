@@ -7,7 +7,7 @@ _ReadyToRun_ is a form of ahead-of-time (AOT) compilation to improve startup per
 
 ## Minimal Project
 
-The purpose of the _Minimal_ is to establish a baseline for all other .NET Lambda functions. Measurements of this Lambda function represent the lower bound of the AWS Lambda runtime for .NET projects.
+The purpose of the _Minimal_ project is to establish a baseline for all other .NET Lambda functions. Measurements of this Lambda function represent the lower bound of the AWS Lambda runtime for .NET projects.
 
 ### .NET 6 Runtime with 1024MB memory
 
