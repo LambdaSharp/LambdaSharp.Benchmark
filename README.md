@@ -2,8 +2,6 @@
 
 This module is used to benchmark .NET AWS Lambda functions with different compilation and deployment options. The measurements are then collected into a CSV file for analysis.
 
-The measurements are captured in an interactive [Google Sheets dashboard](https://docs.google.com/spreadsheets/d/1ULCEIbXPXFWzv8m-FMnh6b0T4acgZDavJxwY7-NKGdo/edit?usp=sharing).
-
 ## Presentation
 
 <a href="https://youtu.be/fzLIqliRGrE"><img title="Serverless .NET Pattern: What's New in .NET 6 and AWS Lambda" src="Docs/TitleSlide.png"></a>
@@ -30,16 +28,60 @@ The measurements are captured in an interactive [Google Sheets dashboard](https:
 
 ## Using LambdaSharp.Benchmark
 
-_LambdaSharp.Benchmark_ uses the [LambdaSharp Tool](https://lambdasharp.net) for deployment. Once _LambdaSharp_ is set up, deploy _LambdaSharp.Benchmark_ directly from its published module. (Alternatively, you can clone and deploy from a local copy.)
+The measurements were gathered using the _LambdaSharp.Benchmark_ module. Read more about the methodology in the [this document](Docs/Methodology.md).
+
+### Module Deployment
+
+_LambdaSharp.Benchmark_ uses the [LambdaSharp Tool](https://lambdasharp.net) for deployment. Once _LambdaSharp_ is set up, deploy _LambdaSharp.Benchmark_ directly from its published module. Alternatively, the module can also be deployed from a cloned repository. Deploying the module takes about 3 minutes.
 ```bash
 lash deploy LambdaSharp.Benchmark@lambdasharp
 ```
 
-Make note of the S3 bucket name that was created. It is used to upload sample projects to benchmark and holds the measurements at the end.
-```bash
-...
-TODO: tool output
+Make note of the S3 bucket name shown at the end of the deployment. It is used to upload sample projects to benchmark and holds the measurements at the end.
 ```
+$ lash deploy LambdaSharp.Benchmark@lambdasharp
+LambdaSharp CLI (v0.8.4.0) - Deploy LambdaSharp module
+Readying module for deployment tier <DEFAULT>
+Resolving module reference: LambdaSharp.Benchmark@lambdasharp
+=> Validating module for deployment tier
+
+Deploying stack: LambdaSharp-Benchmark [LambdaSharp.Benchmark:1.0@lambdasharp]
+=> Stack create initiated for LambdaSharp-Benchmark [CAPABILITY_IAM]
+CREATE_COMPLETE    AWS::CloudFormation::Stack             LambdaSharp-Benchmark (2m 57.71s)
+CREATE_COMPLETE    AWS::S3::Bucket                        BuildBucket (22.74s)
+CREATE_COMPLETE    LambdaSharp::Registration::Module      Module::Registration (3.21s)
+CREATE_COMPLETE    AWS::IAM::Role                         Module::Role (21.36s)
+CREATE_COMPLETE    LambdaSharp::S3::EmptyBucket           EmptyBuildBucket (2.57s)
+CREATE_COMPLETE    AWS::IAM::Role                         CodeBuild::Role (20.25s)
+CREATE_COMPLETE    AWS::CodeBuild::Project                CodeBuild::Project (2.96s)
+CREATE_COMPLETE    AWS::IAM::Policy                       Module::Role::DeadLetterQueuePolicy (18.51s)
+CREATE_COMPLETE    AWS::Lambda::Function                  CombineMeasurementsFunction (9.69s)
+CREATE_COMPLETE    AWS::Lambda::Function                  ListArtifactsFunction (8.77s)
+CREATE_COMPLETE    AWS::Lambda::Function                  MeasureFunction (8.49s)
+CREATE_COMPLETE    LambdaSharp::Registration::Function    ListArtifactsFunction::Registration (2.9s)
+CREATE_COMPLETE    AWS::Logs::LogGroup                    MeasureFunction::LogGroup (2.42s)
+CREATE_COMPLETE    LambdaSharp::Registration::Function    MeasureFunction::Registration (1.93s)
+CREATE_COMPLETE    LambdaSharp::Registration::Function    CombineMeasurementsFunction::Registration (2.66s)
+CREATE_COMPLETE    AWS::Logs::LogGroup                    ListArtifactsFunction::LogGroup (2.49s)
+CREATE_COMPLETE    AWS::Logs::LogGroup                    CombineMeasurementsFunction::LogGroup (2.46s)
+CREATE_COMPLETE    AWS::IAM::Role                         TestWorkflow::StepFunctionRole (19.57s)
+CREATE_COMPLETE    AWS::Logs::SubscriptionFilter          MeasureFunction::LogGroupSubscription (0.7s)
+CREATE_COMPLETE    AWS::Logs::SubscriptionFilter          ListArtifactsFunction::LogGroupSubscription (1.02s)
+CREATE_COMPLETE    AWS::Logs::SubscriptionFilter          CombineMeasurementsFunction::LogGroupSubscription (0.83s)
+CREATE_COMPLETE    AWS::StepFunctions::StateMachine       TestWorkflow::StepFunction (2.79s)
+CREATE_COMPLETE    AWS::IAM::Policy                       WatchBucketFunctionPermission (18.58s)
+CREATE_COMPLETE    AWS::Lambda::Function                  WatchBucketFunction (8.99s)
+CREATE_COMPLETE    AWS::Lambda::Permission                WatchBucketFunction::Source1Permission (10.77s)
+CREATE_COMPLETE    LambdaSharp::Registration::Function    WatchBucketFunction::Registration (2.94s)
+CREATE_COMPLETE    AWS::Logs::LogGroup                    WatchBucketFunction::LogGroup (3.34s)
+CREATE_COMPLETE    AWS::Logs::SubscriptionFilter          WatchBucketFunction::LogGroupSubscription (1.03s)
+CREATE_COMPLETE    LambdaSharp::S3::Subscription          WatchBucketFunction::Source1Subscription (2.93s)
+=> Stack create finished
+Stack output values:
+=> BuildBucketName = lambdasharp-benchmark-buildbucket-q9bvmyfoiizu
+```
+
+### Benchmarking
 
 Identify a project to measure. Now add a `RunSpec.json` file to the project folder. This file contains the AWS Lambda entry point name and the JSON payload to use for the Lambda invocation.
 ```json
