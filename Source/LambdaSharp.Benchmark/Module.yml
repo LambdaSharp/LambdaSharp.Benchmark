@@ -1,6 +1,10 @@
 Module: LambdaSharp.Benchmark
+Version: 1.0
+Origin: lambdasharp
+
 Using:
   - Module: LambdaSharp.S3.IO:0.8@lambdasharp
+
 Items:
 
   ###
