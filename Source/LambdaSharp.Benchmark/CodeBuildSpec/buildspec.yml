@@ -1,0 +1,32 @@
+version: 0.2
+env:
+  shell: bash
+  variables:
+    DOTNET_SDK_URL: "https://download.visualstudio.microsoft.com/download/pr/c505a449-9ecf-4352-8629-56216f521616/bd6807340faae05b61de340c8bf161e8/dotnet-sdk-6.0.201-linux-x64.tar.gz"
+
+phases:
+  install:
+    runtime-versions:
+      dotnet: 3.1
+    on-failure: ABORT
+    commands:
+      - curl $DOTNET_SDK_URL -o dotnet-sdk-6.tar.gz
+      - mkdir -p $HOME/dotnet
+      - tar zxf dotnet-sdk-6.tar.gz -C $HOME/dotnet
+      - export DOTNET_ROOT=$HOME/dotnet
+      - export PATH=$HOME/dotnet:$PATH
+      - dotnet --version
+
+  build:
+    on-failure: ABORT
+    commands:
+      - chmod +x build.sh
+      - sed -i -e 's/\r$//' build.sh
+      - ./build.sh
+
+artifacts:
+  files:
+    - "*.zip"
+    - "*.log"
+    - "*.json"
+  base-directory: publish

@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace LambdaPerformance.SourceGeneratorJson {
+namespace Benchmark.SourceGeneratorJson {
 
     public class User {
 

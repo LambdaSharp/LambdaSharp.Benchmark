@@ -11,7 +11,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Amazon.S3;
 
-namespace LambdaPerformance.AwsSdk {
+namespace Benchmark.AwsSdk {
 
     public sealed class Function {
 

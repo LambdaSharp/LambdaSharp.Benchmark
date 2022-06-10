@@ -10,7 +10,7 @@ The purpose of this project is to establish a baseline for all other .NET Lambda
 using System.IO;
 using System.Threading.Tasks;
 
-namespace LambdaPerformance.Minimal {
+namespace Benchmark.Minimal {
 
     public sealed class Function {
 

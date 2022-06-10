@@ -6,7 +6,7 @@
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
-    <RootNamespace>LambdaPerformance.MinimalTopLevel</RootNamespace>
+    <RootNamespace>Benchmark.MinimalTopLevel</RootNamespace>
     <Nullable>enable</Nullable>
     <NoWarn>CS1998</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -14,6 +14,6 @@
   <ItemGroup>
     <PackageReference Include="Amazon.Lambda.Core" Version="2.1.0" />
     <PackageReference Include="Amazon.Lambda.RuntimeSupport" Version="1.7.0" />
-    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.2.0" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.3.0" />
   </ItemGroup>
 </Project>

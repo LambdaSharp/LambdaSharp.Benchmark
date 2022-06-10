@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace LambdaPerformance.SystemTextJson {
+namespace Benchmark.SystemTextJson {
 
     public class User {
 

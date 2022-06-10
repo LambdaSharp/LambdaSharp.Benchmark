@@ -1,0 +1,303 @@
+Module: LambdaSharp.Benchmark
+Version: 1.0
+Origin: lambdasharp
+
+Using:
+  - Module: LambdaSharp.S3.IO:0.8@lambdasharp
+
+Items:
+
+  ###
+  # Parameters
+  ###
+
+  - Parameter: MemorySizes
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: List of memory sizes to benchmark
+    Description: List of memory sizes to benchmark
+    Default: 128,256,512,1024,1769
+
+  - Parameter: Runtimes
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: List of runtimes to benchmark
+    Description: List of runtimes to benchmark
+    Default: dotnetcore3.1,dotnet6
+
+  - Parameter: Architectures
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: List of architectures to benchmark
+    Description: List of architectures to benchmark
+    Default: arm64,x86_64
+
+  - Parameter: TieredOption
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: Use tiered compilation for benchmark
+    Description: Use tiered compilation for benchmark
+    AllowedValues:
+      - "no"
+      - "yes"
+      - both
+    Default: both
+
+  - Parameter: Ready2RunOption
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: Use ready2run for benchmark
+    Description: Use ready2run for benchmark
+    AllowedValues:
+      - "no"
+      - "yes"
+      - both
+    Default: both
+
+  - Parameter: ColdStartSamplesCount
+    Scope: MeasureFunction
+    Section: Benchmark Configuration
+    Label: Number of cold-start samples to collect per project and configuration
+    Description: Number of cold-start samples
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 100
+
+  - Parameter: WarmStartSamplesCount
+    Scope: MeasureFunction
+    Section: Benchmark Configuration
+    Label: Number of warm-start samples to collect per project and configuration
+    Description: Number of warm-start samples
+    Type: Number
+    Default: 25
+    MinValue: 1
+    MaxValue: 100
+
+  - Parameter: Parallelism
+    Section: Benchmark Configuration
+    Label: Number of simultaneous benchmarks to run
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 100
+
+  ###
+  # Build Project
+  ###
+
+  - Group: CodeBuild
+    Items:
+
+      - Package: Spec
+        Files: CodeBuildSpec
+
+      - Resource: Project
+        Type: AWS::CodeBuild::Project
+        Properties:
+          Artifacts:
+            Type: S3
+            Packaging: NONE
+            Location: !Ref BuildBucket
+            Name: /
+            NamespaceType: BUILD_ID
+            Path: Build
+          Environment:
+            ComputeType: BUILD_GENERAL1_SMALL
+            Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+            Type: LINUX_CONTAINER
+          ServiceRole: !GetAtt CodeBuild::Role.Arn
+          Source:
+            Type: S3
+            Location: !Sub ${Deployment::BucketName}/${CodeBuild::Spec}
+
+      - Resource: Role
+        Type: AWS::IAM::Role
+        Properties:
+          Description: IAM Role for CodeBuild used by LambdaSharp.Benchmark
+          AssumeRolePolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: codebuild.amazonaws.com
+                  Action: sts:AssumeRole
+          Policies:
+            - PolicyName: CodeBuildPolicy
+              PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      - logs:CreateLogGroup
+                      - logs:CreateLogStream
+                      - logs:PutLogEvents
+                    Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+                  - Effect: Allow
+                    Action:
+                      - s3:GetBucketAcl
+                      - s3:GetBucketLocation
+                      - s3:GetObject
+                      - s3:GetObjectVersion
+                      - s3:ListBucket
+                    Resource:
+                      - !Sub arn:${AWS::Partition}:s3:::${Deployment::BucketName}
+                      - !Sub arn:${AWS::Partition}:s3:::${Deployment::BucketName}/*
+                  - Effect: Allow
+                    Action:
+                      - s3:GetObject
+                      - s3:GetObjectVersion
+                      - s3:ListBucket
+                      - s3:PutObject
+                    Resource:
+                      - !Sub arn:${AWS::Partition}:s3:::${BuildBucket}
+                      - !Sub arn:${AWS::Partition}:s3:::${BuildBucket}/*
+                  - Effect: Allow
+                    Action:
+                      - codebuild:CreateReportGroup
+                      - codebuild:CreateReport
+                      - codebuild:UpdateReport
+                      - codebuild:BatchPutTestCases
+                      - codebuild:BatchPutCodeCoverages
+                    Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/CodeBuild-*
+
+  - Group: TestWorkflow
+    Items:
+
+      - Resource: StepFunction
+        Scope: WatchBucketFunction
+        Type: AWS::StepFunctions::StateMachine
+        Properties:
+          StateMachineType: STANDARD
+          RoleArn: !GetAtt TestWorkflow::StepFunctionRole.Arn
+          DefinitionString:
+            Fn::Sub: !Include StepFunction.json
+
+      - Resource: StepFunctionRole
+        Type: AWS::IAM::Role
+        Properties:
+          Description: IAM Role for CodeBuild used by LambdaSharp.Benchmark
+          AssumeRolePolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Service: !Sub states.${AWS::Region}.amazonaws.com
+                  Action: sts:AssumeRole
+          Policies:
+            - PolicyName: StepFunctionPolicy
+              PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      - codebuild:StartBuild
+                      - codebuild:StopBuild
+                      - codebuild:BatchGetBuilds
+                    Resource: !Sub arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuild::Project}
+                  - Effect: Allow
+                    Action:
+                      - lambda:InvokeFunction
+                    Resource:
+                      - !GetAtt ListArtifactsFunction.Arn
+                      - !GetAtt MeasureFunction.Arn
+                      - !GetAtt CombineMeasurementsFunction.Arn
+                  - Effect: Allow
+                    Action:
+                      - events:PutTargets
+                      - events:PutRule
+                      - events:DescribeRule
+                    Resource:
+                      - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+
+  ###
+  # Functions
+  ###
+
+  - Function: ListArtifactsFunction
+    Description: Generate combined run-specs for all build and memory configurations
+    Memory: 1769
+    Timeout: 30
+
+  - Function: MeasureFunction
+    Description: Measure cold- and warm-start performance for a single Lambda function run-spec
+    Memory: 512
+    Timeout: 900
+
+  - Resource: FunctionPermissions
+    Description: Permissions required to manage the Lambda function to benchmark
+    Value: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Module::Id}-Test-*
+    Allow:
+      - lambda:CreateFunction
+      - lambda:UpdateFunctionConfiguration
+      - lambda:DeleteFunction
+      - lambda:InvokeFunction
+      - lambda:GetFunction
+
+  - Resource: LambdaRolePermissions
+    Description: IAM role used by the Lambda function being benchmarked
+    Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/LambdaDefaultRole"
+    Allow:
+      - iam:PassRole
+
+  - Resource: FunctionLogPermissions
+    Description: Permissions required to delete the CloudWatch logs created by the benchmarked Lambda function
+    Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
+    Allow:
+      - logs:DeleteLogGroup
+      - logs:DeleteLogStream
+
+  - Function: CombineMeasurementsFunction
+    Description: Function to combine all individual measurements into a single file
+    Memory: 1769
+    Timeout: 300
+
+  - Resource: BuildBucket
+    Scope: MeasureFunction, ListArtifactsFunction, CombineMeasurementsFunction
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireBuildObjects
+            Status: Enabled
+            ExpirationInDays: 1
+            Prefix: Build/
+    Allow:
+      - s3:ListBucket
+      - s3:GetObject
+      - s3:PutObject
+      - s3:DeleteObject
+
+  - Variable: BuildBucketName
+    Scope: public
+    Value: !Ref BuildBucket
+
+  - Resource: EmptyBuildBucket
+    Description: Ensure the build bucket is empty on stack deletion
+    Type: LambdaSharp::S3::EmptyBucket
+    Properties:
+      Bucket: !Ref BuildBucket
+
+  - Function: WatchBucketFunction
+    Description: Watch build bucket for new Lambda zip packages to kick-off a benchmark
+    Memory: 1769
+    Timeout: 30
+    Sources:
+      - S3: BuildBucket
+        Events:
+          - "s3:ObjectCreated:*"
+        Prefix: Projects/
+        Suffix: .zip
+
+  - Resource: WatchBucketFunctionPermission
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: InvokeStepFunction
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: states:StartExecution
+            Resource: !Ref TestWorkflow::StepFunction
+      Roles:
+        - !Ref Module::Role
