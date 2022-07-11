@@ -255,23 +255,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             usedDurationColumns,
             "Total Used"
         );
-        // foreach(var sample in samples) {
-        //     AppendCsvLine(
-        //         summary.Project,
-        //         summary.Build,
-        //         summary.Runtime,
-        //         summary.Architecture,
-        //         summary.Tiered,
-        //         summary.Ready2Run,
-        //         runSpec.ZipSize.ToString(),
-        //         $"{summary.MemorySize}MB",
-        //         sample.Sample.ToString(),
-        //         sample.UsedDurations.Count.ToString(),
-        //         sample.InitDuration?.ToString(),
-        //         sample.UsedDurations.Select(usedDuration => usedDuration.ToString()),
-        //         sample.UsedDurations.Sum().ToString()
-        //     );
-        // }
         AppendCsvLine(
             summary.Project,
             summary.Build,
