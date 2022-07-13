@@ -42,7 +42,6 @@ public class FunctionResponse {
     public string? Message { get; set; }
     public int PreviousRuns { get; set; }
     public int LastCount { get; set; }
-    public string? FunctionName { get; set; }
 }
 
 public class MeasurementSummary {
@@ -129,6 +128,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         try {
             ArgumentAssertException.Assert(request.LambdaName is not null);
             ArgumentAssertException.Assert(request.RunSpec is not null);
+            ArgumentAssertException.Assert(request.RunSpec.Payload is not null);
         } catch(ArgumentAssertException e) {
             return new() {
                 Success = false,
@@ -136,11 +136,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             };
         }
 
-        // check if Lambda function must be created
-        var lambdaName = request.LambdaName;
-
         // conduct cold-start performance measurement
-        var samples = await MeasureAsync(lambdaName, request.RunSpec.Payload, ColdStartSamplesCount - request.PreviousRuns, WarmStartSamplesCount);
+        var samples = await MeasureAsync(request.LambdaName, request.RunSpec.Payload, ColdStartSamplesCount - request.PreviousRuns, WarmStartSamplesCount);
 
         // wait to ensure log groups have been created
         await Task.Delay(TimeSpan.FromSeconds(5));
@@ -214,7 +211,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         return new() {
             Success = true,
             LastCount = lastCount,
-            FunctionName = lambdaName,
             PreviousRuns = request.PreviousRuns + samples.Count
         };
 
