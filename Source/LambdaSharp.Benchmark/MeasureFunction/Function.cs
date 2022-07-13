@@ -19,17 +19,20 @@
 namespace LambdaSharp.Benchmark.DeployFunction;
 
 using Amazon.Lambda;
-using Amazon.CloudWatchLogs;
 using Amazon.S3;
 using LambdaSharp;
+using LambdaSharp.Benchmark.Common;
 using System.Text;
 using System.Text.RegularExpressions;
-using LambdaSharp.Benchmark.Common;
 
 public class FunctionRequest {
 
     //--- Properties ---
-    public string? RunSpec { get; set; }
+    public string? LambdaName { get; set; }
+    public RunSpec? RunSpec { get; set; }
+    public string? Build { get; set; }
+    public int LastCount { get; set; }
+    public int PreviousRuns { get; set; }
 }
 
 public class FunctionResponse {
@@ -37,6 +40,9 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
+    public int PreviousRuns { get; set; }
+    public int LastCount { get; set; }
+    public string? FunctionName { get; set; }
 }
 
 public class MeasurementSummary {
@@ -68,14 +74,10 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     private const int MAX_LAMBDA_NAME_LENGTH = 64;
 
     //--- Class Fields ---
-    private static Random _random = new();
     private static Regex _lambdaReportPattern = new(@"REPORT RequestId: (?<RequestId>[\da-f\-]+)\s*Duration: (?<UsedDuration>[\d\.]+) ms\s*Billed Duration: (?<BilledDuration>[\d\.]+) ms\s*Memory Size: (?<MaxMemory>[\d\.]+) MB\s*Max Memory Used: (?<UsedMemory>[\d\.]+) MB\s*(Init Duration: (?<InitDuration>[\d\.]+) ms)?");
     private IAmazonS3? _s3Client;
 
     //--- Class Methods ---
-    private static string RandomString(int length)
-        => new string(Enumerable.Range(0, length).Select(_ => CHARACTERS[_random.Next(CHARACTERS.Length)]).ToArray());
-
     private static double Median(IEnumerable<double> numbers) {
         ArgumentAssertException.Assert(numbers.Any());
         var orderedNumbers = numbers.OrderBy(number => number).ToArray();
@@ -95,7 +97,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     //--- Fields ---
     private IAmazonLambda? _lambdaClient;
-    private IAmazonCloudWatchLogs? _logsClient;
     private string? _buildBucketName;
 
     //--- Constructors ---
@@ -105,7 +106,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public int ColdStartSamplesCount { get; set; }
     public int WarmStartSamplesCount { get; set; }
     private IAmazonLambda LambdaClient => _lambdaClient ?? throw new InvalidOperationException();
-    private IAmazonCloudWatchLogs LogsClient => _logsClient ?? throw new InvalidOperationException();
     private string AwsAccountId => CurrentContext.InvokedFunctionArn.Split(':')[4];
     private string BuildBucketName => _buildBucketName ?? throw new InvalidOperationException();
     private IAmazonS3 S3Client => _s3Client ?? throw new InvalidOperationException();
@@ -120,7 +120,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // initialize clients
         _lambdaClient = new AmazonLambdaClient();
-        _logsClient = new AmazonCloudWatchLogsClient();
         _s3Client = new AmazonS3Client();
     }
 
@@ -128,6 +127,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
         // validate run-spec
         try {
+            ArgumentAssertException.Assert(request.LambdaName is not null);
             ArgumentAssertException.Assert(request.RunSpec is not null);
         } catch(ArgumentAssertException e) {
             return new() {
@@ -136,101 +136,33 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             };
         }
 
-        // load run-spec from S3
-        LogInfo($"Loading run-spec s3://{BuildBucketName}/{request.RunSpec}");
-        var getRunSpecObjectResponse = await S3Client.GetObjectAsync(new() {
-            BucketName = BuildBucketName,
-            Key = request.RunSpec
-        });
-        var runSpec = LambdaSerializer.Deserialize<RunSpec>(getRunSpecObjectResponse.ResponseStream);
-        try {
-            ArgumentAssertException.Assert(runSpec.Project is not null);
-            ArgumentAssertException.Assert(runSpec.Handler is not null);
-            ArgumentAssertException.Assert(runSpec.ZipFile is not null);
-            ArgumentAssertException.Assert(runSpec.Runtime is not null);
-            ArgumentAssertException.Assert(runSpec.Architecture is not null);
-            ArgumentAssertException.Assert(runSpec.MemorySize is >= 128 and <= 1769);
-            ArgumentAssertException.Assert(runSpec.Payload is not null);
-        } catch(ArgumentAssertException e) {
-            return new() {
-                Success = false,
-                Message = $"Request validation failed: {e.Message.Replace("runSpec.", "")}"
-            };
-        }
+        // check if Lambda function must be created
+        var lambdaName = request.LambdaName;
 
-        // create Lambda function
-        var functionNamePrefix = $"{Info.ModuleId}-Test-";
-        var functionName = functionNamePrefix + RandomString(MAX_LAMBDA_NAME_LENGTH - functionNamePrefix.Length);
-        var logGroupName = $"/aws/lambda/{functionName}";
-        List<MeasurementSample>? samples;
-        try {
+        // conduct cold-start performance measurement
+        var samples = await MeasureAsync(lambdaName, request.RunSpec.Payload, ColdStartSamplesCount - request.PreviousRuns, WarmStartSamplesCount);
 
-            // create Lambda function
-            LogInfo($"Create Lambda function: {functionName}");
-            await LambdaClient.CreateFunctionAsync(new() {
-                Architectures = {
-                    runSpec.Architecture
-                },
-                Timeout = 30,
-                Runtime = runSpec.Runtime,
-                PackageType = PackageType.Zip,
-                MemorySize = runSpec.MemorySize,
-                FunctionName = functionName,
-                Description = $"Measuring {runSpec.ZipFile} (Memory: {runSpec.MemorySize})",
-                Code = new() {
-                    S3Bucket = BuildBucketName,
-                    S3Key = runSpec.ZipFile
-                },
-                Handler = runSpec.Handler,
-                Role = $"arn:aws:iam::{AwsAccountId}:role/LambdaDefaultRole"
-            });
-
-            // conduct cold-start performance measurement
-            samples = await MeasureAsync(functionName, runSpec.Payload, ColdStartSamplesCount, WarmStartSamplesCount);
-        } finally {
-
-            // wait to ensure log groups have been created
-            await Task.Delay(TimeSpan.FromSeconds(5));
-
-            // delete Lambda function
-            try {
-                LogInfo($"Delete Lambda function: {functionName}");
-                await LambdaClient.DeleteFunctionAsync(functionName);
-            } catch(Exception e) {
-                LogErrorAsWarning(e, $"Unable to delete function: {functionName}");
-            }
-
-            // delete log group, which is automatically created by Lambda invocation
-            try {
-                LogInfo($"Delete log group: {logGroupName}");
-                await LogsClient.DeleteLogGroupAsync(new() {
-                    LogGroupName = logGroupName
-                });
-            } catch(Amazon.CloudWatchLogs.Model.ResourceNotFoundException) {
-
-                // nothing to do
-                LogInfo($"Log group does not exist: {logGroupName}");
-            } catch(Exception e) {
-                LogErrorAsInfo(e, $"Unable to delete log group: {logGroupName}");
-            }
-        }
+        // wait to ensure log groups have been created
+        await Task.Delay(TimeSpan.FromSeconds(5));
 
         // create result file
         MeasurementSummary summary = new() {
-            Project = runSpec.Project,
-            Build = Path.GetFileNameWithoutExtension(request.RunSpec),
-            Runtime = runSpec.Runtime,
-            Architecture = runSpec.Architecture,
-            MemorySize = runSpec.MemorySize,
-            Tiered = runSpec.Tiered,
-            Ready2Run = runSpec.Ready2Run,
-            ZipSize = runSpec.ZipSize,
+            Project = request.RunSpec.Project,
+            Build = request.Build,
+            Runtime = request.RunSpec.Runtime,
+            Architecture = request.RunSpec.Architecture,
+            MemorySize = request.RunSpec.MemorySize,
+            Tiered = request.RunSpec.Tiered,
+            Ready2Run = request.RunSpec.Ready2Run,
+            ZipSize = request.RunSpec.ZipSize,
             Samples = samples
         };
 
         // write measurements JSON to S3 bucket
-        var measurementKey = Path.ChangeExtension(request.RunSpec, extension: null);
-        await WriteToS3(measurementKey + "-measurement.json", LambdaSerializer.Serialize(summary));
+        var lastCount = request.LastCount + 1;
+        await WriteToS3($"measurements/{request.Build}-measurement-{lastCount:00}.json", LambdaSerializer.Serialize(summary));
+
+        // TODO: consider moving this logic to `CombineMeasurementFunction` instead
 
         // write measurements CSV to S3 bucket
         StringBuilder csv = new();
@@ -262,7 +194,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             summary.Architecture,
             summary.Tiered,
             summary.Ready2Run,
-            runSpec.ZipSize.ToString(),
+            request.RunSpec.ZipSize.ToString(),
             $"{summary.MemorySize}MB",
             "AVERAGE",
             samples.Count.ToString(),
@@ -276,11 +208,14 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             // sum of average warm invocation durations
             Enumerable.Range(1, WarmStartSamplesCount).Select(index => samples.Average(sample => sample.UsedDurations.ElementAt(index))).Sum().ToString("0.###")
         );
-        await WriteToS3(measurementKey + "-measurements-average.csv", csv.ToString());
+        await WriteToS3($"measurements/{request.Build}-measurements-average.csv", csv.ToString());
 
         // return successfully
         return new() {
-            Success = true
+            Success = true,
+            LastCount = lastCount,
+            FunctionName = lambdaName,
+            PreviousRuns = request.PreviousRuns + samples.Count
         };
 
         // local functions

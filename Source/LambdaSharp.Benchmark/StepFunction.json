@@ -59,19 +59,78 @@
                 "RunSpec.$": "$$.Map.Item.Value"
             },
             "Iterator": {
-                "StartAt": "RunMeasurement",
+                "StartAt": "ReadRunSpec",
                 "States": {
+                    "ReadRunSpec": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${ReadRunSpec}",
+                            "Payload.$": "$"
+                        },
+                        "ResultSelector": {
+                            "Success.$": "$.Payload.Success",
+                            "RunSpec.$": "$.Payload.RunSpec",
+                            "Build.$": "$.Payload.Build"
+                        },
+                        "ResultPath": "$.ReadRunSpec",
+                        "Next": "CreateFunction"
+                    },
+
+                    "CreateFunction": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${CreateFunction}",
+                            "Payload": {
+                                "RunSpec.$": "$.ReadRunSpec.RunSpec"
+                            }
+                        },
+                        "ResultSelector": {
+                            "Success.$": "$.Payload.Success",
+                            "LambdaName.$": "$.Payload.LambdaName"
+                        },
+                        "ResultPath": "$.CreateFunction",
+                        "Next": "RunMeasurement"
+                    },
+
                     "RunMeasurement": {
                         "Type": "Task",
                         "Resource": "arn:aws:states:::lambda:invoke",
                         "Parameters": {
                             "FunctionName": "${MeasureFunction}",
-                            "Payload.$": "$"
+                            "Payload": {
+                                "LambdaName.$": "$.CreateFunction.LambdaName",
+                                "RunSpec.$": "$.ReadRunSpec.RunSpec",
+                                "Build.$": "$.ReadRunSpec.Build"
+                            }
                         },
                         "ResultSelector": {
                             "Success.$": "$.Payload.Success"
                         },
                         "ResultPath": "$.RunMeasurement",
+                        "Next": "WaitBeforeDestroyFunction"
+                    },
+
+                    "WaitBeforeDestroyFunction": {
+                        "Type": "Wait",
+                        "Seconds": 60,
+                        "Next": "DestroyFunction"
+                    },
+
+                    "DestroyFunction": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${DestroyFunction}",
+                            "Payload": {
+                                "LambdaName.$": "$.CreateFunction.LambdaName"
+                            }
+                        },
+                        "ResultSelector": {
+                            "Success.$": "$.Payload.Success"
+                        },
+                        "ResultPath": "$.DestroyFunction",
                         "End": true
                     }
                 }
