@@ -114,11 +114,11 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             nameof(MeasurementSummary.Ready2Run),
             nameof(MeasurementSummary.ZipSize),
             nameof(MeasurementSummary.MemorySize),
-            nameof(MeasurementSample.Sample),
             "Runs",
             "Init",
-            usedDurationColumns,
-            "Total Used"
+            "Cold Used",
+            "Total Warm Used",
+            usedDurationColumns
         );
         foreach(var measurement in measurements) {
             AppendCsvLine(
@@ -130,17 +130,21 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 measurement.Ready2Run,
                 measurement.ZipSize.ToString(),
                 $"{measurement.MemorySize}MB",
-                "AVERAGE",
                 measurement.Samples.Count.ToString(),
 
                 // average of all init durations
                 measurement.Samples.Average(sample => sample.InitDuration)?.ToString("0.###"),
 
-                // average by used duration, including cold start used duration
-                Enumerable.Range(0, warmStartSamplesCount + 1).Select(index => measurement.Samples.Average(sample => sample.UsedDurations.ElementAt(index)).ToString("0.###")),
+                // average of all cold used durations
+                measurement.Samples.Average(sample => sample.UsedDurations[0]).ToString("0.###"),
 
                 // sum of average warm invocation durations
-                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Average(sample => sample.UsedDurations.ElementAt(index))).Sum().ToString("0.###")
+                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Average(sample => sample.UsedDurations.ElementAt(index))).Sum().ToString("0.###"),
+
+                // INDIVIDUAL WARM USED
+
+                // average by warm used duration
+                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Average(sample => sample.UsedDurations.ElementAt(index)).ToString("0.###"))
             );
         }
 
@@ -157,7 +161,21 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         };
 
         // local functions
-        void AppendCsvLine(string? project, string? build, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? sample, string? runs, string? initDuration, IEnumerable<string> usedDurations, string totalUsed)
-            => csv.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{sample},{runs},{initDuration},{string.Join(",", usedDurations)},{totalUsed}");
+        void AppendCsvLine(
+            string? project,
+            string? build,
+            string? runtime,
+            string? architecture,
+            string? tiered,
+            string? ready2run,
+            string? zipSize,
+            string? memory,
+            string? runs,
+            string? initDuration,
+            string? usedColdDuration,
+            string? totalWarmUsed,
+            IEnumerable<string> usedWarmDurations
+        )
+            => csv.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{runs},{initDuration},{usedColdDuration},{totalWarmUsed},{string.Join(",", usedWarmDurations)}");
     }
 }
