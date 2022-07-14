@@ -51,7 +51,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         } catch(ArgumentAssertException e) {
             return new() {
                 Success = false,
-                Message = $"Request validation failed: {e.Message.Replace("request.", "")}"
+                Message = $"Request validation failed: {e.Message}"
             };
         }
 
@@ -73,7 +73,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         } catch(ArgumentAssertException e) {
             return new() {
                 Success = false,
-                Message = $"Request validation failed: {e.Message.Replace("runSpec.", "")}"
+                Message = $"Request validation failed: {e.Message}"
             };
         }
         if(runSpec.Role is null) {

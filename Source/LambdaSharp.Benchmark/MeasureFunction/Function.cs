@@ -16,13 +16,14 @@
  * limitations under the License.
  */
 
-namespace LambdaSharp.Benchmark.DeployFunction;
+namespace LambdaSharp.Benchmark.MeasureFunction;
 
 using Amazon.Lambda;
 using Amazon.S3;
 using LambdaSharp;
 using LambdaSharp.Benchmark.Common;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 public class FunctionRequest {
@@ -31,8 +32,7 @@ public class FunctionRequest {
     public string? LambdaName { get; set; }
     public RunSpec? RunSpec { get; set; }
     public string? Build { get; set; }
-    public int LastCount { get; set; }
-    public int PreviousRuns { get; set; }
+    public string? BuildId { get; set; }
 }
 
 public class FunctionResponse {
@@ -40,31 +40,10 @@ public class FunctionResponse {
     //--- Properties ---
     public bool Success { get; set; }
     public string? Message { get; set; }
-    public int PreviousRuns { get; set; }
-    public int LastCount { get; set; }
+    public bool Continue { get; set; }
 }
 
-public class MeasurementSummary {
 
-    //--- Properties ---
-    public string? Project { get; set; }
-    public string? Build { get; set; }
-    public string? Runtime { get; set; }
-    public string? Architecture { get; set; }
-    public int MemorySize { get; set; }
-    public string? Tiered { get; set; }
-    public string? Ready2Run { get; set; }
-    public long ZipSize { get; internal set; }
-    public List<MeasurementSample>? Samples { get; set; }
-}
-
-public class MeasurementSample {
-
-    //--- Properties ---
-    public int Sample { get; internal set; }
-    public double? InitDuration { get; set; }
-    public List<double> UsedDurations { get; set; } = new();
-}
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
 
@@ -124,100 +103,68 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
 
-        // validate run-spec
+        // validate request
         try {
             ArgumentAssertException.Assert(request.LambdaName is not null);
+            ArgumentAssertException.Assert(request.Build is not null);
+            ArgumentAssertException.Assert(request.BuildId is not null);
             ArgumentAssertException.Assert(request.RunSpec is not null);
+            ArgumentAssertException.Assert(request.RunSpec.Project is not null);
             ArgumentAssertException.Assert(request.RunSpec.Payload is not null);
+            ArgumentAssertException.Assert(request.RunSpec.Runtime is not null);
+            ArgumentAssertException.Assert(request.RunSpec.Architecture is not null);
+            ArgumentAssertException.Assert(request.RunSpec.Tiered is not null);
+            ArgumentAssertException.Assert(request.RunSpec.Ready2Run is not null);
         } catch(ArgumentAssertException e) {
             return new() {
                 Success = false,
-                Message = $"Request validation failed: {e.Message.Replace("request.", "")}"
+                Message = $"Request validation failed: {e.Message}"
+            };
+        }
+        LogInfo($"Starting measurement for {request.LambdaName}");
+
+        // check if a measurement file already exists
+        var s3MeasurementKey = $"Measurements/{request.BuildId}-{request.Build}.json";
+        MeasurementSummary summary;
+        var existingMeasurementJson = await ReadFromS3(s3MeasurementKey);
+        if(existingMeasurementJson is not null) {
+            summary = JsonSerializer.Deserialize<MeasurementSummary>(existingMeasurementJson)
+                ?? throw new ApplicationException($"S3 JSON file is not valid ({s3MeasurementKey})");
+            LogInfo($"Restored measurements from s3://{BuildBucketName}/{s3MeasurementKey}");
+        } else {
+            summary = new() {
+                Project = request.RunSpec.Project,
+                Build = request.Build,
+                Runtime = request.RunSpec.Runtime,
+                Architecture = request.RunSpec.Architecture,
+                MemorySize = request.RunSpec.MemorySize,
+                Tiered = request.RunSpec.Tiered,
+                Ready2Run = request.RunSpec.Ready2Run,
+                ZipSize = request.RunSpec.ZipSize
             };
         }
 
         // conduct cold-start performance measurement
-        var samples = await MeasureAsync(request.LambdaName, request.RunSpec.Payload, ColdStartSamplesCount - request.PreviousRuns, WarmStartSamplesCount);
-
-        // wait to ensure log groups have been created
-        await Task.Delay(TimeSpan.FromSeconds(5));
-
-        // create result file
-        MeasurementSummary summary = new() {
-            Project = request.RunSpec.Project,
-            Build = request.Build,
-            Runtime = request.RunSpec.Runtime,
-            Architecture = request.RunSpec.Architecture,
-            MemorySize = request.RunSpec.MemorySize,
-            Tiered = request.RunSpec.Tiered,
-            Ready2Run = request.RunSpec.Ready2Run,
-            ZipSize = request.RunSpec.ZipSize,
-            Samples = samples
-        };
+        var cancellationTokenSource = new CancellationTokenSource(CurrentContext.RemainingTime - TimeSpan.FromSeconds(60));
+        var samples = await MeasureColdStartAsync(
+            request.LambdaName,
+            request.RunSpec.Payload,
+            ColdStartSamplesCount,
+            WarmStartSamplesCount,
+            cancellationTokenSource.Token
+        );
+        summary.Samples.AddRange(samples);
 
         // write measurements JSON to S3 bucket
-        var lastCount = request.LastCount + 1;
-        await WriteToS3($"measurements/{request.Build}-measurement-{lastCount:00}.json", LambdaSerializer.Serialize(summary));
-
-        // TODO: consider moving this logic to `CombineMeasurementFunction` instead
-
-        // write measurements CSV to S3 bucket
-        StringBuilder csv = new();
-        List<string> usedDurationColumns = new() {
-            "Used"
-        };
-        for(var i = 1; i <= WarmStartSamplesCount; ++i) {
-            usedDurationColumns.Add($"Used-{i:00}");
-        }
-        AppendCsvLine(
-            nameof(MeasurementSummary.Project),
-            nameof(MeasurementSummary.Build),
-            nameof(MeasurementSummary.Runtime),
-            nameof(MeasurementSummary.Architecture),
-            nameof(MeasurementSummary.Tiered),
-            nameof(MeasurementSummary.Ready2Run),
-            nameof(MeasurementSummary.ZipSize),
-            nameof(MeasurementSummary.MemorySize),
-            nameof(MeasurementSample.Sample),
-            "Runs",
-            "Init",
-            usedDurationColumns,
-            "Total Used"
-        );
-        AppendCsvLine(
-            summary.Project,
-            summary.Build,
-            summary.Runtime,
-            summary.Architecture,
-            summary.Tiered,
-            summary.Ready2Run,
-            request.RunSpec.ZipSize.ToString(),
-            $"{summary.MemorySize}MB",
-            "AVERAGE",
-            samples.Count.ToString(),
-
-            // average of all init durations
-            samples.Average(sample => sample.InitDuration)?.ToString("0.###"),
-
-            // average by used duration, including cold start used duration
-            Enumerable.Range(0, WarmStartSamplesCount + 1).Select(index => samples.Average(sample => sample.UsedDurations.ElementAt(index)).ToString("0.###")),
-
-            // sum of average warm invocation durations
-            Enumerable.Range(1, WarmStartSamplesCount).Select(index => samples.Average(sample => sample.UsedDurations.ElementAt(index))).Sum().ToString("0.###")
-        );
-        await WriteToS3($"measurements/{request.Build}-measurements-average.csv", csv.ToString());
+        await WriteToS3(s3MeasurementKey, LambdaSerializer.Serialize(summary));
 
         // return successfully
         return new() {
             Success = true,
-            LastCount = lastCount,
-            PreviousRuns = request.PreviousRuns + samples.Count
+            Continue = summary.Samples.Count < ColdStartSamplesCount
         };
 
         // local functions
-        void AppendCsvLine(string? project, string? build, string? runtime, string? architecture, string? tiered, string? ready2run, string? zipSize, string? memory, string? sample, string? runs, string? initDuration, IEnumerable<string> usedDurations, string totalUsed)
-            => csv.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{sample},{runs},{initDuration},{string.Join(",", usedDurations)},{totalUsed}");
-
         async Task WriteToS3(string key, string contents) {
             LogInfo($"Writing measurement file to s3://{BuildBucketName}/{key}");
             await S3Client.PutObjectAsync(new() {
@@ -226,15 +173,40 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 ContentBody = contents
             });
         }
+
+        async Task<string?> ReadFromS3(string key) {
+            LogInfo($"Reading measurement file from s3://{BuildBucketName}/{key}");
+            try {
+                var response = await S3Client.GetObjectAsync(new() {
+                    BucketName = BuildBucketName,
+                    Key = key
+                });
+                using StreamReader reader = new(response.ResponseStream);
+                return await reader.ReadToEndAsync();
+            } catch(AmazonS3Exception) {
+                return null;
+            }
+        }
     }
 
-    private async Task<List<MeasurementSample>> MeasureAsync(string functionName, string payload, int samplesCount, int warmStartSamplesCount) {
+    private async Task<List<MeasurementSample>> MeasureColdStartAsync(
+        string functionName,
+        string payload,
+        int samplesCount,
+        int warmStartSamplesCount,
+        CancellationToken cancellationToken
+    ) {
         var result = new List<MeasurementSample>();
         var failureCount = 0;
 
         // collect cold-start samples
-        for(var sampleIndex = 1; sampleIndex <= samplesCount; ++sampleIndex) {
-            LogInfo($"Iteration {sampleIndex}.0");
+        for(var iterationCounter = 0; result.Count < samplesCount; ++iterationCounter) {
+            var sampleIndex = result.Count + 1;
+            if(cancellationToken.IsCancellationRequested) {
+                LogInfo($"Cold iteration {sampleIndex}: cancelled");
+                return result;
+            }
+            LogInfo($"Cold iteration {sampleIndex}: starting");
 
             // update Lambda function configuration to force a cold start
             try {
@@ -242,7 +214,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                     FunctionName = functionName,
                     Environment = new() {
                         Variables = {
-                            ["COLDSTART_RUN"] = sampleIndex.ToString()
+                            ["COLDSTART_RUN"] = iterationCounter.ToString()
                         }
                     }
                 });
@@ -254,7 +226,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 // Lambda function is not yet ready to be updated; wait and try again
                 await Task.Delay(TimeSpan.FromSeconds(2));
                 await WaitForFunctionToBeReady(functionName);
-                ++samplesCount;
                 if(++failureCount >= 10) {
                     throw new ApplicationException("Too many failed attempts updating configuration");
                 }
@@ -282,7 +253,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 LogInfo($"Lambda invocation did not report a cold-start. Trying again.");
 
                 // invocation didn't cause a cold-start; add an additional run
-                ++samplesCount;
                 if(++failureCount >= 10) {
                     throw new ApplicationException("Too many failed measurement attempts");
                 }
@@ -292,45 +262,21 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             // add cold-start result
             coldStartMeasurement.Sample = sampleIndex;
             var coldStartUsedDuration = coldStartMeasurement.UsedDurations.First();
-            LogInfo($"Cold-Start: Iteration={sampleIndex}.0, InitDuration={coldStartMeasurement.InitDuration:0.###}ms, UsedDuration={coldStartUsedDuration:0.###}ms");
+            LogInfo($"Cold iteration {sampleIndex}: InitDuration={coldStartMeasurement.InitDuration:0.###}ms, UsedDuration={coldStartUsedDuration:0.###}ms");
 
-            // collect warm-start samples
-            for(var warmStartSampleIndex = 1; warmStartSampleIndex <= warmStartSamplesCount; ++warmStartSampleIndex) {
-                LogInfo($"Iteration {sampleIndex}.{warmStartSampleIndex}");
+            // measure warm performance
+            var warmUsedDurations = await MeasureWarmUsedDurationsAsync(functionName, payload, warmStartSamplesCount);
+            if(warmUsedDurations is null) {
 
-                // invoke Lambda function
-                lambdaResponse = await LambdaClient.InvokeAsync(new() {
-                    FunctionName = functionName,
-                    Payload = payload,
-                    InvocationType = InvocationType.RequestResponse,
-                    LogType = LogType.Tail
-                });
-                var warmStartMeasurement = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
-                if(!string.IsNullOrEmpty(lambdaResponse.FunctionError)) {
-                    throw new ApplicationException($"Lambda function invocation failed: {lambdaResponse.FunctionError}");
+                // abort on too many consecutive failed attempts
+                if(++failureCount >= 10) {
+                    throw new ApplicationException("Too many failed measurement attempts");
                 }
-                if(
-                    (warmStartMeasurement.InitDuration is not null)
-                    || !string.IsNullOrEmpty(lambdaResponse.FunctionError)
-                    || !warmStartMeasurement.UsedDurations.Any()
-                ) {
-                    LogInfo($"Lambda invocation reported a cold-start. Aborting warm-start sampling.");
-
-                    // invocation caused a cold-start; add an additional run
-                    ++samplesCount;
-                    if(++failureCount >= 10) {
-                        throw new ApplicationException("Too many failed measurement attempts");
-                    }
-                    goto skip;
-                }
-
-                // add warm-start result
-                var warmStartUsedDuration = warmStartMeasurement.UsedDurations.First();
-                coldStartMeasurement.UsedDurations.Add(warmStartUsedDuration);
-                LogInfo($"Warm-Start: Iteration={sampleIndex}.{warmStartSampleIndex}, UsedDuration={warmStartUsedDuration:0.###}ms");
+                goto skip;
             }
 
             // add completed measurement
+            coldStartMeasurement.UsedDurations.AddRange(warmUsedDurations);
             result.Add(coldStartMeasurement);
 
             // reset failure count after successfully measuring the function
@@ -339,6 +285,41 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             continue;
         }
         return result;
+    }
+
+    private async Task<IEnumerable<double>?> MeasureWarmUsedDurationsAsync(string functionName, string payload, int warmStartSamplesCount) {
+
+        // collect warm samples
+        var results = new List<double>();
+        for(var warmStartSampleIndex = 1; warmStartSampleIndex <= warmStartSamplesCount; ++warmStartSampleIndex) {
+            LogInfo($"Warm iteration {warmStartSampleIndex}: starting");
+
+            // invoke Lambda function
+            var lambdaResponse = await LambdaClient.InvokeAsync(new() {
+                FunctionName = functionName,
+                Payload = payload,
+                InvocationType = InvocationType.RequestResponse,
+                LogType = LogType.Tail
+            });
+            var warmStartMeasurement = ParseLambdaReportFromLogResult(lambdaResponse.LogResult);
+            if(!string.IsNullOrEmpty(lambdaResponse.FunctionError)) {
+                throw new ApplicationException($"Lambda function invocation failed: {lambdaResponse.FunctionError}");
+            }
+            if(
+                (warmStartMeasurement.InitDuration is not null)
+                || !string.IsNullOrEmpty(lambdaResponse.FunctionError)
+                || !warmStartMeasurement.UsedDurations.Any()
+            ) {
+                LogInfo($"Lambda invocation reported a cold-start. Aborting warm-start sampling.");
+                return null;
+            }
+
+            // add warm result
+            var warmStartUsedDuration = warmStartMeasurement.UsedDurations.First();
+            results.Add(warmStartUsedDuration);
+            LogInfo($"Warm iteration {warmStartSampleIndex}: UsedDuration={warmStartUsedDuration:0.###}ms");
+        }
+        return results;
     }
 
     private async Task WaitForFunctionToBeReady(string functionName) {

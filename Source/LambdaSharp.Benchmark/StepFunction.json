@@ -56,7 +56,8 @@
             "ItemsPath": "$.GetListOfMeasurements.RunSpecs",
             "MaxConcurrency": ${Parallelism},
             "Parameters": {
-                "RunSpec.$": "$$.Map.Item.Value"
+                "RunSpec.$": "$$.Map.Item.Value",
+                "BuildId.$": "$.BuildProject.BuildId"
             },
             "Iterator": {
                 "StartAt": "ReadRunSpec",
@@ -66,7 +67,9 @@
                         "Resource": "arn:aws:states:::lambda:invoke",
                         "Parameters": {
                             "FunctionName": "${ReadRunSpec}",
-                            "Payload.$": "$"
+                            "Payload": {
+                                "RunSpec.$": "$.RunSpec"
+                            }
                         },
                         "ResultSelector": {
                             "Success.$": "$.Payload.Success",
@@ -102,14 +105,28 @@
                             "Payload": {
                                 "LambdaName.$": "$.CreateFunction.LambdaName",
                                 "RunSpec.$": "$.ReadRunSpec.RunSpec",
-                                "Build.$": "$.ReadRunSpec.Build"
+                                "Build.$": "$.ReadRunSpec.Build",
+                                "BuildId.$": "$.BuildId"
                             }
                         },
                         "ResultSelector": {
-                            "Success.$": "$.Payload.Success"
+                            "Success.$": "$.Payload.Success",
+                            "Continue.$": "$.Payload.Continue"
                         },
                         "ResultPath": "$.RunMeasurement",
-                        "Next": "WaitBeforeDestroyFunction"
+                        "Next": "CheckMeasurementDone"
+                    },
+
+                    "CheckMeasurementDone": {
+                        "Type": "Choice",
+                        "Choices": [
+                            {
+                                "Variable": "$.RunMeasurement.Continue",
+                                "BooleanEquals": true,
+                                "Next": "RunMeasurement"
+                            }
+                        ],
+                        "Default": "WaitBeforeDestroyFunction"
                     },
 
                     "WaitBeforeDestroyFunction": {
@@ -151,7 +168,6 @@
             "Parameters": {
                 "FunctionName": "${CombineMeasurementsFunction}",
                 "Payload": {
-                    "ProjectPath.$": "$.ProjectPath",
                     "BuildId.$": "$.BuildProject.BuildId"
                 }
             },

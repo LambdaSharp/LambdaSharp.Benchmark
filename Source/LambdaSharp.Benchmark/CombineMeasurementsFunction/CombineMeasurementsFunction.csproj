@@ -14,6 +14,9 @@
     <PackageReference Include="AWSSDK.S3" Version="3.7.8.10" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Common/**" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Condition="'$(LAMBDASHARP)'==''" Include="LambdaSharp" Version="0.8.4.*"/>
     <ProjectReference Condition="'$(LAMBDASHARP)'!=''" Include="$(LAMBDASHARP)\src\LambdaSharp\LambdaSharp.csproj" />
   </ItemGroup>
