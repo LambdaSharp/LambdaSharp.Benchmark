@@ -106,6 +106,8 @@ function build_function() {
             exit 1
             ;;
     esac
+
+    # create label based on configuration
     local FUNCTION_LABEL="$1-$FRAMEWORK_LABEL-$ARCHITECTURE_LABEL-$TIERED_LABEL-$READY2RUN_LABEL"
 
     # check expected files exist
@@ -147,18 +149,32 @@ function build_function() {
     # check if the build was successful
     if [ -d $BUILD_FUNCTION_FOLDER ]; then
         if [ "$(ls -A $BUILD_FUNCTION_FOLDER)" ]; then
-            local ZIP_FILE="$PUBLISH_FOLDER/$FUNCTION_LABEL.zip"
 
-            # compress build output into zip file
+            # compress build output into zip file (NoPreJIT)
+            local ZIP_FILE1="$PUBLISH_FOLDER/$FUNCTION_LABEL-NoPreJIT.zip"
             pushd "$BUILD_FUNCTION_FOLDER" > /dev/null
-            zip -9 -r "$ZIP_FILE" . > /dev/null
+            zip -9 -r "$ZIP_FILE1" . > /dev/null
             popd > /dev/null
-            local ZIP_SIZE="$(wc -c <"$ZIP_FILE")"
+            local ZIP_SIZE="$(wc -c <"$ZIP_FILE1")"
             echo "==> Success: $ZIP_SIZE bytes"
 
             # copy JSON file and add runtime/architecture details
-            local RUNSPEC_OUTPUT="$PUBLISH_FOLDER/$FUNCTION_LABEL.json"
-            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$LAMBDA_RUNTIME\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\"}" > "$RUNSPEC_OUTPUT"
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" \
+                | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$LAMBDA_RUNTIME\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\",\"PreJIT\":\"no\"}" \
+                > "$PUBLISH_FOLDER/$FUNCTION_LABEL-NoPreJIT.json"
+
+            # compress build output into zip file (YesPreJIT)
+            local ZIP_FILE2="$PUBLISH_FOLDER/$FUNCTION_LABEL-YesPreJIT.zip"
+            pushd "$BUILD_FUNCTION_FOLDER" > /dev/null
+            zip -9 -r "$ZIP_FILE2" . > /dev/null
+            popd > /dev/null
+            local ZIP_SIZE="$(wc -c <"$ZIP_FILE2")"
+            echo "==> Success: $ZIP_SIZE bytes"
+
+            # copy JSON file and add runtime/architecture details
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" \
+                | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$LAMBDA_RUNTIME\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\",\"PreJIT\":\"yes\"}" \
+                > "$PUBLISH_FOLDER/$FUNCTION_LABEL-YesPreJIT.json"
         else
 
             # show build output and delete empty folder

@@ -54,6 +54,17 @@ Items:
       - both
     Default: both
 
+  - Parameter: PreJITOption
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: Use PreJIT for benchmark
+    Description: Use PreJIT for benchmark
+    AllowedValues:
+      - "no"
+      - "yes"
+      - both
+    Default: both
+
   - Parameter: ColdStartSamplesCount
     Scope: MeasureFunction
     Section: Benchmark Configuration

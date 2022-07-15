@@ -61,10 +61,12 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
         ArgumentAssertException.Assert(request.BuildId is not null);
+        ArgumentAssertException.Assert(request.BuildId.IndexOf(':') >= 0);
+        var buildId = request.BuildId.Split(':', 2)[1];
 
         // find all measurements JSON files in S3 bucket
-        LogInfo($"Process measurements for: {request.BuildId}");
-        var s3MeasurementPrefix = $"Measurements/{request.BuildId}-";
+        LogInfo($"Process measurements for: {buildId}");
+        var s3MeasurementPrefix = $"Measurements/{buildId}/";
         var listObjectsResponse = await S3Client.ListObjectsV2Async(new() {
             BucketName = BuildBucketName,
             Prefix = s3MeasurementPrefix,
@@ -75,7 +77,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             .ToList();
         LogInfo($"Found {foundMeasurementFiles.Count:N0} files to process");
         if(foundMeasurementFiles.Count == 0) {
-            throw new ApplicationException($"Could not find any files to process for {request.BuildId}");
+            throw new ApplicationException($"Could not find any files to process for {buildId}");
         }
 
         // read all JSON measurement files
@@ -112,6 +114,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             nameof(MeasurementSummary.Architecture),
             nameof(MeasurementSummary.Tiered),
             nameof(MeasurementSummary.Ready2Run),
+            nameof(MeasurementSummary.PreJIT),
             nameof(MeasurementSummary.ZipSize),
             nameof(MeasurementSummary.MemorySize),
             "Runs",
@@ -128,6 +131,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 measurement.Architecture,
                 measurement.Tiered,
                 measurement.Ready2Run,
+                measurement.PreJIT,
                 measurement.ZipSize.ToString(),
                 $"{measurement.MemorySize}MB",
                 measurement.Samples.Count.ToString(),
@@ -168,6 +172,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             string? architecture,
             string? tiered,
             string? ready2run,
+            string? preJIT,
             string? zipSize,
             string? memory,
             string? runs,
@@ -176,6 +181,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             string? totalWarmUsed,
             IEnumerable<string> usedWarmDurations
         )
-            => csv.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{zipSize},{memory},{runs},{initDuration},{usedColdDuration},{totalWarmUsed},{string.Join(",", usedWarmDurations)}");
+            => csv.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{preJIT},{zipSize},{memory},{runs},{initDuration},{usedColdDuration},{totalWarmUsed},{string.Join(",", usedWarmDurations)}");
     }
 }

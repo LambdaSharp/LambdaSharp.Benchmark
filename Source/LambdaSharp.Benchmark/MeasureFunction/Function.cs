@@ -41,9 +41,8 @@ public class FunctionResponse {
     public bool Success { get; set; }
     public string? Message { get; set; }
     public bool Continue { get; set; }
+    public bool RateExceeded { get; set; }
 }
-
-
 
 public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse> {
 
@@ -108,6 +107,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             ArgumentAssertException.Assert(request.LambdaName is not null);
             ArgumentAssertException.Assert(request.Build is not null);
             ArgumentAssertException.Assert(request.BuildId is not null);
+            ArgumentAssertException.Assert(request.BuildId.IndexOf(':') >= 0);
             ArgumentAssertException.Assert(request.RunSpec is not null);
             ArgumentAssertException.Assert(request.RunSpec.Project is not null);
             ArgumentAssertException.Assert(request.RunSpec.Payload is not null);
@@ -115,6 +115,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             ArgumentAssertException.Assert(request.RunSpec.Architecture is not null);
             ArgumentAssertException.Assert(request.RunSpec.Tiered is not null);
             ArgumentAssertException.Assert(request.RunSpec.Ready2Run is not null);
+            ArgumentAssertException.Assert(request.RunSpec.PreJIT is not null);
         } catch(ArgumentAssertException e) {
             return new() {
                 Success = false,
@@ -124,7 +125,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         LogInfo($"Starting measurement for {request.LambdaName}");
 
         // check if a measurement file already exists
-        var s3MeasurementKey = $"Measurements/{request.BuildId}-{request.Build}.json";
+        var buildId = request.BuildId.Split(':', 2)[1];
+        var s3MeasurementKey = $"Measurements/{buildId}/{request.Build}.json";
         MeasurementSummary summary;
         var existingMeasurementJson = await ReadFromS3(s3MeasurementKey);
         if(existingMeasurementJson is not null) {
@@ -140,20 +142,21 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 MemorySize = request.RunSpec.MemorySize,
                 Tiered = request.RunSpec.Tiered,
                 Ready2Run = request.RunSpec.Ready2Run,
+                PreJIT = request.RunSpec.PreJIT,
                 ZipSize = request.RunSpec.ZipSize
             };
         }
 
         // conduct cold-start performance measurement
         var cancellationTokenSource = new CancellationTokenSource(CurrentContext.RemainingTime - TimeSpan.FromSeconds(60));
-        var samples = await MeasureColdStartAsync(
+        var response = await MeasureColdStartAsync(
             request.LambdaName,
             request.RunSpec.Payload,
             ColdStartSamplesCount,
             WarmStartSamplesCount,
             cancellationTokenSource.Token
         );
-        summary.Samples.AddRange(samples);
+        summary.Samples.AddRange(response.Measurements);
 
         // write measurements JSON to S3 bucket
         await WriteToS3(s3MeasurementKey, LambdaSerializer.Serialize(summary));
@@ -161,7 +164,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         // return successfully
         return new() {
             Success = true,
-            Continue = summary.Samples.Count < ColdStartSamplesCount
+            Continue = summary.Samples.Count < ColdStartSamplesCount,
+            RateExceeded = response.RateExceeded
         };
 
         // local functions
@@ -189,7 +193,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
     }
 
-    private async Task<List<MeasurementSample>> MeasureColdStartAsync(
+    private async Task<(List<MeasurementSample> Measurements, bool RateExceeded)> MeasureColdStartAsync(
         string functionName,
         string payload,
         int samplesCount,
@@ -204,7 +208,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             var sampleIndex = result.Count + 1;
             if(cancellationToken.IsCancellationRequested) {
                 LogInfo($"Cold iteration {sampleIndex}: cancelled");
-                return result;
+                return (Measurements: result, RateExceeded: false);
             }
             LogInfo($"Cold iteration {sampleIndex}: starting");
 
@@ -214,7 +218,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                     FunctionName = functionName,
                     Environment = new() {
                         Variables = {
-                            ["COLDSTART_RUN"] = iterationCounter.ToString()
+                            ["COLD_START_RUN"] = iterationCounter.ToString()
                         }
                     }
                 });
@@ -230,6 +234,9 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                     throw new ApplicationException("Too many failed attempts updating configuration");
                 }
                 continue;
+            } catch(Amazon.Lambda.Model.TooManyRequestsException) {
+                LogInfo($"Cold iteration {sampleIndex}: rate exceeded");
+                return (Measurements: result, RateExceeded: true);
             }
 
             // wait for Lambda configuration changes to propagate
@@ -284,7 +291,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         skip:
             continue;
         }
-        return result;
+        return (Measurements: result, RateExceeded: false);
     }
 
     private async Task<IEnumerable<double>?> MeasureWarmUsedDurationsAsync(string functionName, string payload, int warmStartSamplesCount) {

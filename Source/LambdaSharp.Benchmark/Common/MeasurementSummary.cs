@@ -27,6 +27,7 @@ public class MeasurementSummary {
     public string? Architecture { get; set; }
     public int MemorySize { get; set; }
     public string? Tiered { get; set; }
+    public string? PreJIT { get; set; }
     public string? Ready2Run { get; set; }
     public long ZipSize { get; set; }
     public List<MeasurementSample> Samples { get; set; } = new();

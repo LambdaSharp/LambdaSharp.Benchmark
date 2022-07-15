@@ -95,6 +95,15 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             PackageType = PackageType.Zip,
             MemorySize = request.RunSpec.MemorySize,
             FunctionName = lambdaName,
+            Environment = new() {
+                Variables = new() {
+                    ["AWS_LAMBDA_DOTNET_PREJIT"] = request.RunSpec.PreJIT switch {
+                        "no" => "Never",
+                        "yes" => "Always",
+                        _ => throw new ApplicationException($"Invalid PreJIT value: {request.RunSpec.PreJIT}")
+                    }
+                }
+            },
             Description = $"Measuring {request.RunSpec.ZipFile} (Memory: {request.RunSpec.MemorySize})",
             Code = new() {
                 S3Bucket = BuildBucketName,

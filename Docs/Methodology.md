@@ -6,24 +6,40 @@ This document describes how Lambda measurements are performed.
 
 Each function is compiled with the following settings.
 
-|Runtime        |Architecture   |Tiered Compilation |ReadyToRun |
-|---------------|---------------|-------------------|-----------|
-|.NET 6.0       |arm64          |no                 |no         |
-|.NET 6.0       |arm64          |yes                |no         |
-|.NET 6.0       |arm64          |no                 |yes        |
-|.NET 6.0       |arm64          |yes                |yes        |
-|.NET Core 3.1  |arm64          |no                 |no         |
-|.NET Core 3.1  |arm64          |yes                |no         |
-|.NET Core 3.1  |arm64          |no                 |yes        |
-|.NET Core 3.1  |arm64          |yes                |yes        |
-|.NET 6.0       |x86-64         |no                 |no         |
-|.NET 6.0       |x86-64         |yes                |no         |
-|.NET 6.0       |x86-64         |no                 |yes        |
-|.NET 6.0       |x86-64         |yes                |yes        |
-|.NET Core 3.1  |x86-64         |no                 |no         |
-|.NET Core 3.1  |x86-64         |yes                |no         |
-|.NET Core 3.1  |x86-64         |no                 |yes        |
-|.NET Core 3.1  |x86-64         |yes                |yes        |
+|Runtime        |Architecture   |Tiered Compilation |ReadyToRun |PreJIT |
+|---------------|---------------|-------------------|-----------|-------|
+|.NET 6.0       |arm64          |no                 |no         |no     |
+|.NET 6.0       |arm64          |yes                |no         |no     |
+|.NET 6.0       |arm64          |no                 |yes        |no     |
+|.NET 6.0       |arm64          |yes                |yes        |no     |
+|.NET Core 3.1  |arm64          |no                 |no         |no     |
+|.NET Core 3.1  |arm64          |yes                |no         |no     |
+|.NET Core 3.1  |arm64          |no                 |yes        |no     |
+|.NET Core 3.1  |arm64          |yes                |yes        |no     |
+|.NET 6.0       |x86-64         |no                 |no         |no     |
+|.NET 6.0       |x86-64         |yes                |no         |no     |
+|.NET 6.0       |x86-64         |no                 |yes        |no     |
+|.NET 6.0       |x86-64         |yes                |yes        |no     |
+|.NET Core 3.1  |x86-64         |no                 |no         |no     |
+|.NET Core 3.1  |x86-64         |yes                |no         |no     |
+|.NET Core 3.1  |x86-64         |no                 |yes        |no     |
+|.NET Core 3.1  |x86-64         |yes                |yes        |no     |
+|.NET 6.0       |arm64          |no                 |no         |yes    |
+|.NET 6.0       |arm64          |yes                |no         |yes    |
+|.NET 6.0       |arm64          |no                 |yes        |yes    |
+|.NET 6.0       |arm64          |yes                |yes        |yes    |
+|.NET Core 3.1  |arm64          |no                 |no         |yes    |
+|.NET Core 3.1  |arm64          |yes                |no         |yes    |
+|.NET Core 3.1  |arm64          |no                 |yes        |yes    |
+|.NET Core 3.1  |arm64          |yes                |yes        |yes    |
+|.NET 6.0       |x86-64         |no                 |no         |yes    |
+|.NET 6.0       |x86-64         |yes                |no         |yes    |
+|.NET 6.0       |x86-64         |no                 |yes        |yes    |
+|.NET 6.0       |x86-64         |yes                |yes        |yes    |
+|.NET Core 3.1  |x86-64         |no                 |no         |yes    |
+|.NET Core 3.1  |x86-64         |yes                |no         |yes    |
+|.NET Core 3.1  |x86-64         |no                 |yes        |yes    |
+|.NET Core 3.1  |x86-64         |yes                |yes        |yes    |
 
 Compilation is performed by CodeBuild with teh following `buildspec.yml` file.
 
@@ -86,6 +102,7 @@ REPORT RequestId: 7234b561-1e51-45f4-a031-a71b9836f038	Duration: 327.16 ms	Bille
 
 The measurements are then tallied into a CSV file.
 
+TODO: update description
 ```csv
 Project,Build,Runtime,Architecture,Tiered,Ready2Run,ZipSize,MemorySize,Sample,Runs,Init,Used,Used-01,Used-02,Used-03,Used-04,Used-05,Used-06,Used-07,Used-08,Used-09,Used-10,Used-11,Used-12,Used-13,Used-14,Used-15,Used-16,Used-17,Used-18,Used-19,Used-20,Used-21,Used-22,Used-23,Used-24,Used-25
 Minimal,Minimal-Core31-Arm64-NoTC-NoR2R-1024,dotnetcore3.1,arm64,no,no,17818,1024,2,26,160.41,9.5,1.12,0.92,0.97,0.86,0.75,0.85,0.94,1.02,0.75,0.77,0.84,0.84,0.73,0.74,0.75,0.68,0.73,0.74,0.75,0.73,0.78,0.85,0.77,0.66,0.71

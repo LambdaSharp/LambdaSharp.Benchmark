@@ -111,22 +111,41 @@
                         },
                         "ResultSelector": {
                             "Success.$": "$.Payload.Success",
-                            "Continue.$": "$.Payload.Continue"
+                            "Continue.$": "$.Payload.Continue",
+                            "RateExceeded.$": "$.Payload.RateExceeded"
                         },
                         "ResultPath": "$.RunMeasurement",
-                        "Next": "CheckMeasurementDone"
+                        "Next": "CheckContinue"
                     },
 
-                    "CheckMeasurementDone": {
+                    "CheckContinue": {
                         "Type": "Choice",
                         "Choices": [
                             {
                                 "Variable": "$.RunMeasurement.Continue",
                                 "BooleanEquals": true,
-                                "Next": "RunMeasurement"
+                                "Next": "CheckRateExceeded"
                             }
                         ],
                         "Default": "WaitBeforeDestroyFunction"
+                    },
+
+                    "CheckRateExceeded": {
+                        "Type": "Choice",
+                        "Choices": [
+                            {
+                                "Variable": "$.RunMeasurement.RateExceeded",
+                                "BooleanEquals": true,
+                                "Next": "DelayRunMeasurement"
+                            }
+                        ],
+                        "Default": "RunMeasurement"
+                    },
+
+                    "DelayRunMeasurement": {
+                        "Type": "Wait",
+                        "Seconds": 60,
+                        "Next": "RunMeasurement"
                     },
 
                     "WaitBeforeDestroyFunction": {

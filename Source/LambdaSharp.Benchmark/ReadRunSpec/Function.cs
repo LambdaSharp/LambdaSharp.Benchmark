@@ -68,7 +68,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             ArgumentAssertException.Assert(runSpec.ZipFile is not null);
             ArgumentAssertException.Assert(runSpec.Runtime is not null);
             ArgumentAssertException.Assert(runSpec.Architecture is not null);
-            ArgumentAssertException.Assert(runSpec.MemorySize is >= 128 and <= 1769);
+            ArgumentAssertException.Assert(runSpec.MemorySize is >= 128 and <= 10240);
             ArgumentAssertException.Assert(runSpec.Payload is not null);
         } catch(ArgumentAssertException e) {
             return new() {
