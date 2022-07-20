@@ -59,6 +59,9 @@
                 "RunSpec.$": "$$.Map.Item.Value",
                 "BuildId.$": "$.BuildProject.BuildId"
             },
+            "ResultSelector": {
+
+            },
             "Iterator": {
                 "StartAt": "ReadRunSpec",
                 "States": {
