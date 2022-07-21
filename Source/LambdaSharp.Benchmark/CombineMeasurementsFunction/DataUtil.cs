@@ -24,7 +24,7 @@ using LambdaSharp.Benchmark.Common;
 public static class DataUtil {
 
     //--- Class Methods ---
-    public static string GenerateCsv(IEnumerable<MeasurementSummary> measurements) {
+    public static (string Filename, string Csv)  GenerateCsv(IEnumerable<MeasurementSummary> measurements) {
 
         // combine measurements
         StringBuilder result = new();
@@ -75,7 +75,22 @@ public static class DataUtil {
                 Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average().ToString("0.###"))
             );
         }
-        return result.ToString();
+
+        // extract date for measurement
+        DateTime date;
+        try {
+            if(!DateTime.TryParse(measurements.First().Date, out date)) {
+                date = DateTime.UtcNow;
+            }
+        } catch {
+
+            // set a default date if need be
+            date = DateTime.UtcNow;
+        }
+
+        // return filename and CSV tuple
+        var filename = $"{measurements.First().Project} [{measurements.First().Region}] ({date:yyyy-MM-dd}).csv";
+        return (filename, result.ToString());
 
         // local functions
         void AppendCsvLine(

@@ -99,15 +99,15 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         }
 
         // combine measurements
-        var csv = DataUtil.GenerateCsv(measurements);
+        var result = DataUtil.GenerateCsv(measurements);
 
         // write combined CSV file back to be co-located with original project file
-        var resultPath = $"Reports/{measurements.First().Project} ({DateTime.UtcNow:yyyy-MM-dd}).csv";
+        var resultPath = $"Reports/{result.Filename}";
         LogInfo($"Writing combined measurement file to s3://{resultPath}");
         await S3Client.PutObjectAsync(new() {
             BucketName = _buildBucketName,
             Key = resultPath,
-            ContentBody = csv
+            ContentBody = result.Csv
         });
         return new() {
             MeasurementFile = resultPath

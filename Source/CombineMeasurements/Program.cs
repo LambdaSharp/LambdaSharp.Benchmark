@@ -22,18 +22,18 @@ using LambdaSharp.Benchmark.CombineMeasurementsFunction;
 using LambdaSharp.Benchmark.Common;
 
 if(args.Length < 1) {
-    Console.WriteLine("ERROR: missing arguments <FOLDER-SOURCE> [ <CSV-OUTPUT> ]");
+    Console.WriteLine("ERROR: missing arguments <INPUT-FOLDER> [ <OUTPUT-FOLDER> ]");
     return;
 }
-var folder = args[0];
-var output = (args.Length == 2) ? args[1] : null;
-if(!Directory.Exists(folder)) {
+var inputFolder = args[0];
+var outputFolder = (args.Length == 2) ? args[1] : null;
+if(!Directory.Exists(inputFolder)) {
     Console.WriteLine("ERROR: folder does not exist");
     return;
 }
 
 // enumerate contents of folder
-var filenames = Directory.GetFiles(folder, "*.json");
+var filenames = Directory.GetFiles(inputFolder, "*.json");
 Console.WriteLine($"Found {filenames.Length:N0} files");
 var measurements = new List<MeasurementSummary>();
 foreach(var filename in filenames) {
@@ -46,10 +46,10 @@ foreach(var filename in filenames) {
 
 // generate CSV table
 Console.WriteLine("Generate CSV");
-var csv = DataUtil.GenerateCsv(measurements);
-if(output is null) {
-    Console.WriteLine(csv);
+var result = DataUtil.GenerateCsv(measurements);
+if(outputFolder is null) {
+    Console.WriteLine(result);
 } else {
-    File.WriteAllText(output, csv);
+    File.WriteAllText(Path.Combine(outputFolder, result.Filename), result.Csv);
 }
 Console.WriteLine("DONE");
