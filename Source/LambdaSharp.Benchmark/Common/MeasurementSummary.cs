@@ -21,6 +21,8 @@ namespace LambdaSharp.Benchmark.Common;
 public class MeasurementSummary {
 
     //--- Properties ---
+    public string? Date { get; set; }
+    public string? Region { get; set; }
     public string? Project { get; set; }
     public string? Build { get; set; }
     public string? Runtime { get; set; }

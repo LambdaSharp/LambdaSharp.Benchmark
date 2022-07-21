@@ -135,6 +135,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
             LogInfo($"Restored measurements from s3://{BuildBucketName}/{s3MeasurementKey}");
         } else {
             summary = new() {
+                Date = DateTime.UtcNow.ToString("yyyy-MM-ddThh:mm:ssZ"),
+                Region = S3Client.Config.RegionEndpoint.SystemName,
                 Project = request.RunSpec.Project,
                 Build = request.Build,
                 Runtime = request.RunSpec.Runtime,
@@ -300,6 +302,8 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var results = new List<double>();
         for(var warmStartSampleIndex = 1; warmStartSampleIndex <= warmStartSamplesCount; ++warmStartSampleIndex) {
             LogInfo($"Warm iteration {warmStartSampleIndex}: starting");
+
+            // TODO: make more resilient on internal failure?
 
             // invoke Lambda function
             var lambdaResponse = await LambdaClient.InvokeAsync(new() {
