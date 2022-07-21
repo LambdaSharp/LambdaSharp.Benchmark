@@ -29,9 +29,7 @@ public static class DataUtil {
         // combine measurements
         StringBuilder result = new();
         var warmStartSamplesCount = measurements.First().Samples.Count - 1;
-        List<string> usedDurationColumns = new() {
-            "Used"
-        };
+        List<string> usedDurationColumns = new();
         for(var i = 1; i <= warmStartSamplesCount; ++i) {
             usedDurationColumns.Add($"Used-{i:00}");
         }
@@ -65,16 +63,16 @@ public static class DataUtil {
                 measurement.Samples.Count.ToString(),
 
                 // average of all init durations
-                measurement.Samples.Average(sample => sample.InitDuration)?.ToString("0.###"),
+                measurement.Samples.Select(sample => sample.InitDuration).Average()?.ToString("0.###"),
 
                 // average of all cold used durations
-                measurement.Samples.Average(sample => sample.UsedDurations[0]).ToString("0.###"),
+                measurement.Samples.Select(sample => sample.UsedDurations[0]).Average().ToString("0.###"),
 
                 // sum of average warm invocation durations
-                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Average(sample => sample.UsedDurations.ElementAt(index))).Sum().ToString("0.###"),
+                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average()).Sum().ToString("0.###"),
 
                 // average by warm used duration
-                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Average(sample => sample.UsedDurations.ElementAt(index)).ToString("0.###"))
+                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average().ToString("0.###"))
             );
         }
         return result.ToString();
@@ -92,10 +90,10 @@ public static class DataUtil {
             string? memory,
             string? runs,
             string? initDuration,
-            string? usedColdDuration,
-            string? totalWarmUsed,
+            string? usedCold,
+            string? totalUsedWarm,
             IEnumerable<string> usedWarmDurations
         )
-            => result.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{preJIT},{zipSize},{memory},{runs},{initDuration},{usedColdDuration},{totalWarmUsed},{string.Join(",", usedWarmDurations)}");
+            => result.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{preJIT},{zipSize},{memory},{runs},{initDuration},{usedCold},{totalUsedWarm},{string.Join(",", usedWarmDurations)}");
     }
 }
