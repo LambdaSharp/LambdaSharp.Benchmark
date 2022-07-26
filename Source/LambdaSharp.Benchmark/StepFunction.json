@@ -32,7 +32,7 @@
                     "Next": "GetListOfMeasurements"
                 }
             ],
-            "Default": "BuildFailed"
+            "Default": "NotifyFailure"
         },
 
         "GetListOfMeasurements": {
@@ -201,11 +201,31 @@
                 "MeasurementFile.$": "$.Payload.MeasurementFile"
             },
             "ResultPath": "$.CombineMeasurements",
-            "Next": "BuildSuccess"
+            "Next": "NotifySuccess"
+        },
+
+        "NotifyFailure": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+                "TopicArn": "${NotificationTopic}",
+                "Message.$": "States.Format('Measurements FAILED: {}', $.ProjectPath)"
+            },
+            "Next": "BuildFailed"
         },
 
         "BuildFailed": {
             "Type": "Fail"
+        },
+
+        "NotifySuccess": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+                "TopicArn": "${NotificationTopic}",
+                "Message.$": "States.Format('Measurements posted: {}', $.CombineMeasurements.MeasurementFile)"
+            },
+            "Next": "BuildSuccess"
         },
 
         "BuildSuccess": {

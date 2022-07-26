@@ -223,6 +223,11 @@ Items:
                       - events:DescribeRule
                     Resource:
                       - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+                  - Effect: Allow
+                    Action:
+                      - sns:Publish
+                    Resource:
+                      - !Ref NotificationTopic
 
   ###
   # Functions
@@ -263,6 +268,10 @@ Items:
       - lambda:DeleteFunction
       - lambda:InvokeFunction
       - lambda:GetFunction
+
+  - Resource: NotificationTopic
+    Description: SNS topic used to notify when job has completed
+    Type: AWS::SNS::Topic
 
   - Resource: LambdaRolePermissions
     Description: IAM role used by the Lambda function being benchmarked
