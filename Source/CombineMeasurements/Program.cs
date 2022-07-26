@@ -39,9 +39,14 @@ var measurements = new List<MeasurementSummary>();
 foreach(var filename in filenames) {
     Console.WriteLine($"Parsing {filename}");
     var json = File.ReadAllText(filename);
-    var data = JsonSerializer.Deserialize<MeasurementSummary>(json)
-        ?? throw new ApplicationException($"Unable to deserialize file ({filename})");
-    measurements.Add(data);
+    try {
+        var data = JsonSerializer.Deserialize<MeasurementSummary>(json)
+            ?? throw new ApplicationException($"Unable to deserialize file ({filename})");
+        measurements.Add(data);
+    } catch(JsonException) {
+        Console.Error.WriteLine($"ERROR: invalid file {filename}");
+        return;
+    }
 }
 
 // generate CSV table
