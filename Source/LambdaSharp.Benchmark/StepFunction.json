@@ -118,6 +118,10 @@
                             "RateExceeded.$": "$.Payload.RateExceeded"
                         },
                         "ResultPath": "$.RunMeasurement",
+                        "Catch": [ {
+                           "ErrorEquals": [ "States.ALL" ],
+                           "Next": "WaitBeforeDestroyFunction"
+                        } ],
                         "Next": "CheckContinue"
                     },
 
