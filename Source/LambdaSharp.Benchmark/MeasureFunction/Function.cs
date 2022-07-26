@@ -216,12 +216,19 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
             // update Lambda function configuration to force a cold start
             try {
+
+                // read existing configuration to preserve environment variables
+                var currentConfigurationResponse = await LambdaClient.GetFunctionConfigurationAsync(functionName);
+                var variables = new Dictionary<string, string>(currentConfigurationResponse.Environment.Variables);
+
+                // set cold-start counter (which will force a function cold-start)
+                variables["COLD_START_RUN"] = iterationCounter.ToString();
+
+                // update function configuration
                 var updateConfigurationResponse = await LambdaClient.UpdateFunctionConfigurationAsync(new() {
                     FunctionName = functionName,
                     Environment = new() {
-                        Variables = {
-                            ["COLD_START_RUN"] = iterationCounter.ToString()
-                        }
+                        Variables = variables
                     }
                 });
                 if(updateConfigurationResponse.LastUpdateStatus == LastUpdateStatus.Failed) {
