@@ -259,6 +259,7 @@ Items:
     Allow:
       - lambda:CreateFunction
       - lambda:UpdateFunctionConfiguration
+      - lambda:GetFunctionConfiguration
       - lambda:DeleteFunction
       - lambda:InvokeFunction
       - lambda:GetFunction
