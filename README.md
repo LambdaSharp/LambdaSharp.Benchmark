@@ -103,6 +103,20 @@ aws s3 cp "$ZIP_FILE" "s3://S3-BUCKET-NAME/Projects/SAMPLE-PROJECT.zip"
 
 This will automatically kick-off the a step-function to build and benchmark the code. Once completed, the resulting CSV can be find in `Reports/` folder on the S3 bucket.
 
+## Release History
+
+### v1.1 (2022-07-30)
+
+* Increased cold start sample size to 100
+* Increased warm start sample size to 100
+* Added measurement of pre-JIT Lambda option
+* Added command to delete test Lambdas and their logs in case the measurement failed
+* Added command to convert raw JSON files to CSV for more flexible post-processing
+* Added SNS topic for notifying that the measurement step function is done
+
+### v1.0 (2022-06-10)
+
+* Initial release
 
 ## License
 
