@@ -24,19 +24,19 @@ using LambdaSharp.Benchmark.Common;
 public static class DataUtil {
 
     //--- Constants ---
-    private const decimal AWS_LAMBDA_X86_US_EAST_1_PER_MILLISECOND_MB = 0.0000166667m / 1000 / 1024;
-    private const decimal AWS_LAMBDA_ARM_US_EAST_1_PER_MILLISECOND_MB = 0.0000133334m / 1000 / 1024;
+    private const decimal AWS_LAMBDA_X86_US_EAST_1_PER_SECOND_GB = 0.0000166667m;
+    private const decimal AWS_LAMBDA_ARM_US_EAST_1_PER_SECOND_GB = 0.0000133334m;
+    private const decimal AWS_LAMBDA_PER_MILLION_REQUESTS = 0.20m;
+    private const decimal AWS_LAMBDA_X86_US_EAST_1_PER_MILLISECOND_MB = AWS_LAMBDA_X86_US_EAST_1_PER_SECOND_GB / 1000 / 1024;
+    private const decimal AWS_LAMBDA_ARM_US_EAST_1_PER_MILLISECOND_MB = AWS_LAMBDA_ARM_US_EAST_1_PER_SECOND_GB / 1000 / 1024;
+    private const decimal AWS_LAMBDA_PER_REQUEST = AWS_LAMBDA_PER_MILLION_REQUESTS / 1_000_000;
 
     //--- Class Methods ---
     public static (string Filename, string Csv)  GenerateCsv(IEnumerable<MeasurementSummary> measurements) {
+        var usedDurationsCount = measurements.First().Samples.First().UsedDurations.Count;
 
-        // combine measurements
+        // create CSV header line
         StringBuilder result = new();
-        var warmStartSamplesCount = measurements.First().Samples.Count - 1;
-        List<string> usedDurationColumns = new();
-        for(var i = 1; i <= warmStartSamplesCount; ++i) {
-            usedDurationColumns.Add($"Used-{i:00}");
-        }
         AppendCsvLine(
             nameof(MeasurementSummary.Project),
             nameof(MeasurementSummary.Build),
@@ -50,11 +50,15 @@ public static class DataUtil {
             "Runs",
             "Init",
             "Cold Used",
-            "Total Warm Used",
-            "Cost",
-            usedDurationColumns
+            $"Total Warm Used ({usedDurationsCount - 1})",
+            "Cost (µ$)"
         );
+
+        // combine measurements
         foreach(var measurement in measurements) {
+            var averageUsed = Enumerable.Range(0, usedDurationsCount)
+                .Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average())
+                .ToArray();
             AppendCsvLine(
                 measurement.Project,
                 measurement.Build,
@@ -71,16 +75,13 @@ public static class DataUtil {
                 measurement.Samples.Select(sample => sample.InitDuration).Average()?.ToString("0.###"),
 
                 // average of all cold used durations
-                measurement.Samples.Select(sample => sample.UsedDurations[0]).Average().ToString("0.###"),
+                averageUsed[0].ToString("0.###"),
 
                 // sum of average warm invocation durations
-                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average()).Sum().ToString("0.###"),
+                averageUsed.Skip(1).Sum().ToString("0.###"),
 
                 // compute cost based on architecture and memory configuration
-                CalculateLambdaCost(Enumerable.Range(0, warmStartSamplesCount).Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average()).Sum(), measurement.Architecture, measurement.MemorySize).ToString("0.###"),
-
-                // average by warm used duration
-                Enumerable.Range(1, warmStartSamplesCount).Select(index => measurement.Samples.Select(sample => sample.UsedDurations.ElementAt(index)).Average().ToString("0.###"))
+                CalculateLambdaCost(averageUsed, measurement.Architecture, measurement.MemorySize).ToString(/*"0.###"*/)
             );
         }
 
@@ -115,17 +116,19 @@ public static class DataUtil {
             string? initDuration,
             string? usedCold,
             string? totalUsedWarm,
-            string? cost,
-            IEnumerable<string> usedWarmDurations
+            string? cost
         )
-            => result.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{preJIT},{zipSize},{memory},{runs},{initDuration},{usedCold},{totalUsedWarm},{cost},{string.Join(",", usedWarmDurations)}");
+            => result.AppendLine($"{project},{build},{runtime},{architecture},{tiered},{ready2run},{preJIT},{zipSize},{memory},{runs},{initDuration},{usedCold},{totalUsedWarm},{cost}");
     }
 
-    private static double CalculateLambdaCost(double totalBillableInvocationTime, string? architecture, int memorySize) {
-        return (double)(architecture switch {
+    private static double CalculateLambdaCost(IEnumerable<double> averageUsed, string? architecture, int memorySize) {
+        var totalBillableInvocationTime = averageUsed.Sum();
+        var usedBillable = architecture switch {
             "arm64" => AWS_LAMBDA_ARM_US_EAST_1_PER_MILLISECOND_MB * (decimal)totalBillableInvocationTime * memorySize,
             "x86_64" => AWS_LAMBDA_X86_US_EAST_1_PER_MILLISECOND_MB * (decimal)totalBillableInvocationTime * memorySize,
             _ => throw new ApplicationException($"unrecognized architecture: {architecture}")
-        } * 1_000_000);
+        };
+        var requestsBillable = averageUsed.Count() * AWS_LAMBDA_PER_REQUEST;
+        return (double)(usedBillable + requestsBillable) * 1_000_000;
     }
 }
