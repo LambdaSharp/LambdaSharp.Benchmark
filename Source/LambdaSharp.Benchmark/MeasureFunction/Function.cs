@@ -310,8 +310,6 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         for(var warmStartSampleIndex = 1; warmStartSampleIndex <= warmStartSamplesCount; ++warmStartSampleIndex) {
             LogInfo($"Warm iteration {warmStartSampleIndex}: starting");
 
-            // TODO: make more resilient on internal failure?
-
             // invoke Lambda function
             var lambdaResponse = await LambdaClient.InvokeAsync(new() {
                 FunctionName = functionName,
