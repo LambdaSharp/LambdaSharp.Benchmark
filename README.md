@@ -16,14 +16,14 @@ This module is used to benchmark .NET AWS Lambda functions with different compil
 
 ## Benchmarked Projects
 
-1. [AwsSdk](Projects/AwsSdk/): benchmark using AWS .NET SDK ([Results](Data/AwsSdk%20(2022-06-02).csv))
-1. [Minimal](Projects/Minimal/): minimal baseline project ([Results](Data/Minimal%20(2022-06-02).csv))
-1. [NewtonsoftJson](Projects/NewtonsoftJson/): benchmark using Newtonsoft JSON.NET ([Results](Data/NewtonsoftJson%20(2022-06-02).csv))
-1. [SampleAwsNewtonsoftTopLevel](Projects/SampleAwsNewtonsoftTopLevel/) ([Results](Data/SampleAwsNewtonsoftTopLevel%20(2022-06-03).csv))
-1. [SampleAwsSystemTextJsonTopLevel](Projects/SampleAwsSystemTextJsonTopLevel/) ([Results](Data/SampleAwsSystemTextJsonTopLevel%20(2022-06-04).csv))
-1. [SampleMinimalApi](Projects/SampleMinimalApi/) ([Results](Data/SampleMinimalApi%20(2022-06-03).csv))
-1. [SourceGeneratorJson](Projects/SourceGeneratorJson/): benchmark using .NET 6+ source generators for JSON parsing ([Results](Data/SourceGeneratorJson%20(2022-06-02).csv))
-1. [SystemTextJson](Projects/SystemTextJson/): benchmark using System.Text.Json ([Results](Data/SystemTextJson%20(2022-06-02).csv))
+1. [AwsSdk](Projects/AwsSdk/): benchmark using AWS .NET SDK ([Results](Data/AwsSdk%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [Minimal](Projects/Minimal/): minimal baseline project ([Results](Data/Minimal%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [NewtonsoftJson](Projects/NewtonsoftJson/): benchmark using Newtonsoft JSON.NET ([Results](Data/NewtonsoftJson%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SampleAwsNewtonsoftTopLevel](Projects/SampleAwsNewtonsoftTopLevel/) ([Results](Data/SampleAwsNewtonsoftTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SampleAwsSystemTextJsonTopLevel](Projects/SampleAwsSystemTextJsonTopLevel/) ([Results](Data/SampleAwsSystemTextJsonTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SampleMinimalApi](Projects/SampleMinimalApi/) ([Results](Data/SampleMinimalApi%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SourceGeneratorJson](Projects/SourceGeneratorJson/): benchmark using .NET 6+ source generators for JSON parsing ([Results](Data/SourceGeneratorJson%20%5Bus-west-2%5D%20(2022-07-27).csv))
+1. [SystemTextJson](Projects/SystemTextJson/): benchmark using System.Text.Json ([Results](Data/SystemTextJson%20%5Bus-west-2%5D%20(2022-07-27).csv))
 
 
 ## Using LambdaSharp.Benchmark
