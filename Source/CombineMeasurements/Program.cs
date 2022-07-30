@@ -35,6 +35,9 @@ if(!Directory.Exists(inputFolder)) {
 // enumerate contents of folder
 var filenames = Directory.GetFiles(inputFolder, "*.json");
 Console.WriteLine($"Found {filenames.Length:N0} files");
+if(filenames.Length == 0) {
+    return;
+}
 var measurements = new List<MeasurementSummary>();
 foreach(var filename in filenames) {
     Console.WriteLine($"Parsing {filename}");
@@ -53,7 +56,7 @@ foreach(var filename in filenames) {
 Console.WriteLine("Generate CSV");
 var result = DataUtil.GenerateCsv(measurements);
 if(outputFolder is null) {
-    Console.WriteLine(result);
+    Console.WriteLine(result.Csv);
 } else {
     File.WriteAllText(Path.Combine(outputFolder, result.Filename), result.Csv);
 }
