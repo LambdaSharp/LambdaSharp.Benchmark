@@ -1,5 +1,5 @@
 Module: LambdaSharp.Benchmark
-Version: 1.0
+Version: 1.1
 Origin: lambdasharp
 
 Using:
@@ -16,7 +16,7 @@ Items:
     Section: Benchmark Configuration
     Label: List of memory sizes to benchmark
     Description: List of memory sizes to benchmark
-    Default: 128,256,512,1024,1769
+    Default: 128,256,512,1024,1769,5120
 
   - Parameter: Runtimes
     Scope: ListArtifactsFunction
@@ -54,6 +54,17 @@ Items:
       - both
     Default: both
 
+  - Parameter: PreJITOption
+    Scope: ListArtifactsFunction
+    Section: Benchmark Configuration
+    Label: Use PreJIT for benchmark
+    Description: Use PreJIT for benchmark
+    AllowedValues:
+      - "no"
+      - "yes"
+      - both
+    Default: both
+
   - Parameter: ColdStartSamplesCount
     Scope: MeasureFunction
     Section: Benchmark Configuration
@@ -72,7 +83,7 @@ Items:
     Type: Number
     Default: 25
     MinValue: 1
-    MaxValue: 100
+    MaxValue: 1000
 
   - Parameter: Parallelism
     Section: Benchmark Configuration
@@ -200,7 +211,10 @@ Items:
                       - lambda:InvokeFunction
                     Resource:
                       - !GetAtt ListArtifactsFunction.Arn
+                      - !GetAtt ReadRunSpec.Arn
+                      - !GetAtt CreateFunction.Arn
                       - !GetAtt MeasureFunction.Arn
+                      - !GetAtt DestroyFunction.Arn
                       - !GetAtt CombineMeasurementsFunction.Arn
                   - Effect: Allow
                     Action:
@@ -209,6 +223,11 @@ Items:
                       - events:DescribeRule
                     Resource:
                       - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+                  - Effect: Allow
+                    Action:
+                      - sns:Publish
+                    Resource:
+                      - !Ref NotificationTopic
 
   ###
   # Functions
@@ -219,10 +238,25 @@ Items:
     Memory: 1769
     Timeout: 30
 
+  - Function: ReadRunSpec
+    Description: Emit contents of RunSpec file as a response
+    Memory: 1769
+    Timeout: 30
+
+  - Function: CreateFunction
+    Description: Create the Lambda function based on RunSpec
+    Memory: 1769
+    Timeout: 30
+
   - Function: MeasureFunction
-    Description: Measure cold- and warm-start performance for a single Lambda function run-spec
+    Description: Measure cold- and warm-start performance for a single Lambda function
     Memory: 512
     Timeout: 900
+
+  - Function: DestroyFunction
+    Description: Destroy the Lambda function and its logs
+    Memory: 1769
+    Timeout: 30
 
   - Resource: FunctionPermissions
     Description: Permissions required to manage the Lambda function to benchmark
@@ -230,9 +264,14 @@ Items:
     Allow:
       - lambda:CreateFunction
       - lambda:UpdateFunctionConfiguration
+      - lambda:GetFunctionConfiguration
       - lambda:DeleteFunction
       - lambda:InvokeFunction
       - lambda:GetFunction
+
+  - Resource: NotificationTopic
+    Description: SNS topic used to notify when job has completed
+    Type: AWS::SNS::Topic
 
   - Resource: LambdaRolePermissions
     Description: IAM role used by the Lambda function being benchmarked
@@ -240,12 +279,10 @@ Items:
     Allow:
       - iam:PassRole
 
-  - Resource: FunctionLogPermissions
+  - Resource: DeleteLogGroupsPermission
     Description: Permissions required to delete the CloudWatch logs created by the benchmarked Lambda function
     Value: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Module::Id}-Test-*
-    Allow:
-      - logs:DeleteLogGroup
-      - logs:DeleteLogStream
+    Allow: logs:Delete*
 
   - Function: CombineMeasurementsFunction
     Description: Function to combine all individual measurements into a single file
@@ -253,7 +290,12 @@ Items:
     Timeout: 300
 
   - Resource: BuildBucket
-    Scope: MeasureFunction, ListArtifactsFunction, CombineMeasurementsFunction
+    Scope:
+      - ReadRunSpec
+      - CreateFunction
+      - MeasureFunction
+      - ListArtifactsFunction
+      - CombineMeasurementsFunction
     Type: AWS::S3::Bucket
     Properties:
       LifecycleConfiguration:

@@ -28,5 +28,7 @@ public record RunSpec(
     long ZipSize,
     string? Tiered,
     string? Ready2Run,
-    int MemorySize
+    string? PreJIT,
+    int MemorySize,
+    string? Role
 );

@@ -19,13 +19,14 @@
 namespace LambdaSharp.Benchmark.CombineMeasurementsFunction;
 
 using System.Text;
+using System.Text.Json;
 using Amazon.S3;
 using LambdaSharp;
+using LambdaSharp.Benchmark.Common;
 
 public class FunctionRequest {
 
     //--- Properties ---
-    public string? ProjectPath { get; set; }
     public string? BuildId { get; set; }
 }
 
@@ -59,48 +60,54 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     }
 
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
-        ArgumentAssertException.Assert(request.ProjectPath is not null);
         ArgumentAssertException.Assert(request.BuildId is not null);
         ArgumentAssertException.Assert(request.BuildId.IndexOf(':') >= 0);
-        LogInfo($"Combine measurements for BuildId: {request.BuildId}");
-
-        // return list of all build artifacts
         var buildId = request.BuildId.Split(':', 2)[1];
-        var pathPrefix = $"Build/{buildId}/";
-        LogInfo($"Finding all measurements at s3://{BuildBucketName}/{pathPrefix}");
+
+        // find all measurements JSON files in S3 bucket
+        LogInfo($"Process measurements for: {buildId}");
+        var s3MeasurementPrefix = $"Measurements/{buildId}/";
         var listObjectsResponse = await S3Client.ListObjectsV2Async(new() {
             BucketName = BuildBucketName,
-            Prefix = pathPrefix,
+            Prefix = s3MeasurementPrefix,
             Delimiter = "/"
         });
+        var foundMeasurementFiles = listObjectsResponse.S3Objects
+            .Where(s3Object => s3Object.Key.EndsWith(".json", StringComparison.Ordinal))
+            .ToList();
+        LogInfo($"Found {foundMeasurementFiles.Count:N0} files to process");
+        if(foundMeasurementFiles.Count == 0) {
+            throw new ApplicationException($"Could not find any files to process for {buildId}");
+        }
 
-        // read all CSV measurement files and combine them
-        StringBuilder combinedCsv = new();
-        foreach(var runSpecObject in listObjectsResponse.S3Objects.Where(s3Object => s3Object.Key.EndsWith(".csv", StringComparison.Ordinal))) {
+        // read all JSON measurement files
+        var measurements = new List<MeasurementSummary>();
+        foreach(var measurementFile in foundMeasurementFiles) {
 
             // read run-spec from S3 bucket
-            var getCsvObjectResponse = await S3Client.GetObjectAsync(new() {
+            var getObjectResponse = await S3Client.GetObjectAsync(new() {
                 BucketName = BuildBucketName,
-                Key = runSpecObject.Key
+                Key = measurementFile.Key
             });
 
             // add ZipFile location
-            using StreamReader reader = new(getCsvObjectResponse.ResponseStream);
-            var csv = await reader.ReadToEndAsync();
-            if(combinedCsv.Length > 0) {
-                combinedCsv.Append(string.Join('\n', csv.Split('\n').Skip(1)));
-            } else {
-                combinedCsv.Append(csv);
-            }
+            using StreamReader reader = new(getObjectResponse.ResponseStream);
+            var text = await reader.ReadToEndAsync();
+            var measurement = JsonSerializer.Deserialize<MeasurementSummary>(text)
+                ?? throw new ApplicationException($"S3 JSON file is not valid ({measurementFile.Key})");
+            measurements.Add(measurement);
         }
 
+        // combine measurements
+        var result = DataUtil.GenerateCsv(measurements);
+
         // write combined CSV file back to be co-located with original project file
-        var resultPath = $"Reports/{Path.GetFileNameWithoutExtension(request.ProjectPath)} ({DateTime.UtcNow:yyyy-MM-dd}) [{buildId}].csv";
+        var resultPath = $"Reports/{result.Filename}";
         LogInfo($"Writing combined measurement file to s3://{resultPath}");
         await S3Client.PutObjectAsync(new() {
             BucketName = _buildBucketName,
             Key = resultPath,
-            ContentBody = combinedCsv.ToString()
+            ContentBody = result.Csv
         });
         return new() {
             MeasurementFile = resultPath

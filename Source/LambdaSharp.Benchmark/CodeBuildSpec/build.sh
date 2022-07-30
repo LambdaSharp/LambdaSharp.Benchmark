@@ -37,6 +37,7 @@ function build_function() {
     # determine framework
     local FRAMEWORK_BUILD=""
     local FRAMEWORK_LABEL=""
+    local LAMBDA_RUNTIME="$2"
     case $2 in
         dotnet6)
             FRAMEWORK_BUILD="net6.0"
@@ -65,7 +66,7 @@ function build_function() {
             ARCHITECTURE_LABEL="Arm64"
             ;;
         *)
-            echo "Invalid architecture: $2"
+            echo "Invalid architecture: $3"
             exit 1
             ;;
     esac
@@ -83,7 +84,7 @@ function build_function() {
             TIERED_LABEL="NoTC";
             ;;
         *)
-            echo "Invalid tiered compilation option: $3"
+            echo "Invalid tiered compilation option: $4"
             exit 1
             ;;
     esac
@@ -101,10 +102,12 @@ function build_function() {
             READY2RUN_LABEL="NoR2R";
             ;;
         *)
-            echo "Invalid ready2run option: $4"
+            echo "Invalid ready2run option: $5"
             exit 1
             ;;
     esac
+
+    # create label based on configuration
     local FUNCTION_LABEL="$1-$FRAMEWORK_LABEL-$ARCHITECTURE_LABEL-$TIERED_LABEL-$READY2RUN_LABEL"
 
     # check expected files exist
@@ -119,6 +122,13 @@ function build_function() {
         exit 1
     fi
 
+    # determine if function is self-contained and requires a custom runtime
+    local SELF_CONTAINED_OPTION="--no-self-contained"
+    if grep -F "<AssemblyName>bootstrap</AssemblyName>" $FUNCTION_PROJECT; then
+        SELF_CONTAINED_OPTION="--self-contained"
+        LAMBDA_RUNTIME="provided.al2"
+    fi
+
     # build project
     echo ""
     echo "*** BUILDING $1 [$FRAMEWORK_LABEL, $ARCHITECTURE_LABEL, $TIERED_LABEL, $READY2RUN_LABEL]"
@@ -128,7 +138,7 @@ function build_function() {
         --configuration Release \
         --framework $FRAMEWORK_BUILD \
         --runtime $ARCHITECTURE_BUILD \
-        --no-self-contained \
+        $SELF_CONTAINED_OPTION \
         --output "$BUILD_FUNCTION_FOLDER" \
         -property:GenerateRuntimeConfigurationFiles=true \
         -property:TieredCompilation=$TIERED_BUILD \
@@ -139,18 +149,32 @@ function build_function() {
     # check if the build was successful
     if [ -d $BUILD_FUNCTION_FOLDER ]; then
         if [ "$(ls -A $BUILD_FUNCTION_FOLDER)" ]; then
-            local ZIP_FILE="$PUBLISH_FOLDER/$FUNCTION_LABEL.zip"
 
-            # compress build output into zip file
+            # compress build output into zip file (NoPreJIT)
+            local ZIP_FILE1="$PUBLISH_FOLDER/$FUNCTION_LABEL-NoPreJIT.zip"
             pushd "$BUILD_FUNCTION_FOLDER" > /dev/null
-            zip -9 -r "$ZIP_FILE" . > /dev/null
+            zip -9 -r "$ZIP_FILE1" . > /dev/null
             popd > /dev/null
-            local ZIP_SIZE="$(wc -c <"$ZIP_FILE")"
+            local ZIP_SIZE="$(wc -c <"$ZIP_FILE1")"
             echo "==> Success: $ZIP_SIZE bytes"
 
             # copy JSON file and add runtime/architecture details
-            local RUNSPEC_OUTPUT="$PUBLISH_FOLDER/$FUNCTION_LABEL.json"
-            cat "$PROJECTS_FOLDER/$1/RunSpec.json" | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$2\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\"}" > "$RUNSPEC_OUTPUT"
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" \
+                | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$LAMBDA_RUNTIME\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\",\"PreJIT\":\"no\"}" \
+                > "$PUBLISH_FOLDER/$FUNCTION_LABEL-NoPreJIT.json"
+
+            # compress build output into zip file (YesPreJIT)
+            local ZIP_FILE2="$PUBLISH_FOLDER/$FUNCTION_LABEL-YesPreJIT.zip"
+            pushd "$BUILD_FUNCTION_FOLDER" > /dev/null
+            zip -9 -r "$ZIP_FILE2" . > /dev/null
+            popd > /dev/null
+            local ZIP_SIZE="$(wc -c <"$ZIP_FILE2")"
+            echo "==> Success: $ZIP_SIZE bytes"
+
+            # copy JSON file and add runtime/architecture details
+            cat "$PROJECTS_FOLDER/$1/RunSpec.json" \
+                | jq ". += {\"Project\":\"$1\",\"Runtime\":\"$LAMBDA_RUNTIME\",\"Architecture\":\"$3\",\"ZipSize\":$ZIP_SIZE,\"Tiered\":\"$4\",\"Ready2Run\":\"$5\",\"PreJIT\":\"yes\"}" \
+                > "$PUBLISH_FOLDER/$FUNCTION_LABEL-YesPreJIT.json"
         else
 
             # show build output and delete empty folder

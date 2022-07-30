@@ -60,6 +60,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public IEnumerable<string> Runtimes => _runtimes ?? throw new InvalidOperationException();
     private YesNoBothOption TieredCompilation { get; set; }
     private YesNoBothOption Ready2RunCompilation { get; set; }
+    private YesNoBothOption PreJITOption { get; set; }
 
     //--- Methods ---
     public override async Task InitializeAsync(LambdaConfig config) {
@@ -71,6 +72,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         _memoryConfigurations = config.ReadText("MemorySizes").Split(",", StringSplitOptions.RemoveEmptyEntries).Select(value => int.Parse(value)).ToArray();
         TieredCompilation = Enum.Parse<YesNoBothOption>(config.ReadText("TieredOption"), ignoreCase: true);
         Ready2RunCompilation = Enum.Parse<YesNoBothOption>(config.ReadText("Ready2RunOption"), ignoreCase: true);
+        PreJITOption = Enum.Parse<YesNoBothOption>(config.ReadText("PreJITOption"), ignoreCase: true);
 
         // initialize clients
         _s3Client = new AmazonS3Client();
@@ -79,10 +81,11 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
     public override async Task<FunctionResponse> ProcessMessageAsync(FunctionRequest request) {
         ArgumentAssertException.Assert(request.BuildId is not null);
         ArgumentAssertException.Assert(request.BuildId.IndexOf(':') >= 0);
-        LogInfo($"List artifacts for BuildId: {request.BuildId}");
+        var buildId = request.BuildId.Split(':', 2)[1];
+        LogInfo($"List artifacts for BuildId: {buildId}");
 
         // return list of all build artifacts
-        var pathPrefix = $"Build/{request.BuildId.Split(':', 2)[1]}/";
+        var pathPrefix = $"Build/{buildId}/";
         LogInfo($"Finding all run-specs at s3://{BuildBucketName}/Build/{pathPrefix}");
         var listObjectsResponse = await S3Client.ListObjectsV2Async(new() {
             BucketName = BuildBucketName,
@@ -110,6 +113,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
         var architectureDidNotMatch = 0;
         var tieredCompilationDidNotMatch = 0;
         var ready2RunDidNotMatch = 0;
+        var preJITDidNotMatch = 0;
         foreach(var runSpec in runSpecs) {
             if(!Runtimes.Contains(runSpec.Runtime)) {
                 ++runtimeDidNotMatch;
@@ -141,6 +145,15 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 // skip this run-spec
                 continue;
             }
+            if(
+                ((PreJITOption == YesNoBothOption.Yes) && (runSpec.PreJIT == "no"))
+                || ((PreJITOption == YesNoBothOption.No) && (runSpec.PreJIT == "yes"))
+            ) {
+                ++preJITDidNotMatch;
+
+                // skip this run-spec
+                continue;
+            }
 
             // generate a run-spec for each memory configuration
             foreach(var memorySize in MemorySizes) {
@@ -156,7 +169,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
                 response.RunSpecs.Add(runSpecFileName);
             }
         }
-        LogInfo($"Discarded mismatches: ProjectName={projectDidNotMatch}, Runtime={runtimeDidNotMatch}, Architecture={architectureDidNotMatch}, TieredCompilation={tieredCompilationDidNotMatch}, Ready2Run={ready2RunDidNotMatch}");
+        LogInfo($"Discarded mismatches: ProjectName={projectDidNotMatch}, Runtime={runtimeDidNotMatch}, Architecture={architectureDidNotMatch}, TieredCompilation={tieredCompilationDidNotMatch}, Ready2Run={ready2RunDidNotMatch}, PreJIT={preJITDidNotMatch}");
         LogInfo($"Generated {response.RunSpecs.Count:N0} run-specs for MemorySizes=[{string.Join(", ", MemorySizes.Select(memorySize => memorySize.ToString()))}]");
         return response;
     }

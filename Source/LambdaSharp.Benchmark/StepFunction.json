@@ -32,7 +32,7 @@
                     "Next": "GetListOfMeasurements"
                 }
             ],
-            "Default": "BuildFailed"
+            "Default": "NotifyFailure"
         },
 
         "GetListOfMeasurements": {
@@ -56,22 +56,124 @@
             "ItemsPath": "$.GetListOfMeasurements.RunSpecs",
             "MaxConcurrency": ${Parallelism},
             "Parameters": {
-                "RunSpec.$": "$$.Map.Item.Value"
+                "RunSpec.$": "$$.Map.Item.Value",
+                "BuildId.$": "$.BuildProject.BuildId"
+            },
+            "ResultSelector": {
+
             },
             "Iterator": {
-                "StartAt": "RunMeasurement",
+                "StartAt": "ReadRunSpec",
                 "States": {
+                    "ReadRunSpec": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${ReadRunSpec}",
+                            "Payload": {
+                                "RunSpec.$": "$.RunSpec"
+                            }
+                        },
+                        "ResultSelector": {
+                            "Success.$": "$.Payload.Success",
+                            "RunSpec.$": "$.Payload.RunSpec",
+                            "Build.$": "$.Payload.Build"
+                        },
+                        "ResultPath": "$.ReadRunSpec",
+                        "Next": "CreateFunction"
+                    },
+
+                    "CreateFunction": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${CreateFunction}",
+                            "Payload": {
+                                "RunSpec.$": "$.ReadRunSpec.RunSpec"
+                            }
+                        },
+                        "ResultSelector": {
+                            "Success.$": "$.Payload.Success",
+                            "LambdaName.$": "$.Payload.LambdaName"
+                        },
+                        "ResultPath": "$.CreateFunction",
+                        "Next": "RunMeasurement"
+                    },
+
                     "RunMeasurement": {
                         "Type": "Task",
                         "Resource": "arn:aws:states:::lambda:invoke",
                         "Parameters": {
                             "FunctionName": "${MeasureFunction}",
-                            "Payload.$": "$"
+                            "Payload": {
+                                "LambdaName.$": "$.CreateFunction.LambdaName",
+                                "RunSpec.$": "$.ReadRunSpec.RunSpec",
+                                "Build.$": "$.ReadRunSpec.Build",
+                                "BuildId.$": "$.BuildId"
+                            }
+                        },
+                        "ResultSelector": {
+                            "Success.$": "$.Payload.Success",
+                            "Continue.$": "$.Payload.Continue",
+                            "RateExceeded.$": "$.Payload.RateExceeded"
+                        },
+                        "ResultPath": "$.RunMeasurement",
+                        "Catch": [ {
+                           "ErrorEquals": [ "States.ALL" ],
+                           "Next": "WaitBeforeDestroyFunction"
+                        } ],
+                        "Next": "CheckContinue"
+                    },
+
+                    "CheckContinue": {
+                        "Type": "Choice",
+                        "Choices": [
+                            {
+                                "Variable": "$.RunMeasurement.Continue",
+                                "BooleanEquals": true,
+                                "Next": "CheckRateExceeded"
+                            }
+                        ],
+                        "Default": "WaitBeforeDestroyFunction"
+                    },
+
+                    "CheckRateExceeded": {
+                        "Type": "Choice",
+                        "Choices": [
+                            {
+                                "Variable": "$.RunMeasurement.RateExceeded",
+                                "BooleanEquals": true,
+                                "Next": "DelayRunMeasurement"
+                            }
+                        ],
+                        "Default": "RunMeasurement"
+                    },
+
+                    "DelayRunMeasurement": {
+                        "Type": "Wait",
+                        "Seconds": 60,
+                        "Next": "RunMeasurement"
+                    },
+
+                    "WaitBeforeDestroyFunction": {
+                        "Type": "Wait",
+                        "Seconds": 60,
+                        "Next": "DestroyFunction"
+                    },
+
+                    "DestroyFunction": {
+                        "Type": "Task",
+                        "Resource": "arn:aws:states:::lambda:invoke",
+                        "Parameters": {
+                            "FunctionName": "${DestroyFunction}",
+                            "Payload": {
+                                "LambdaName.$": "$.CreateFunction.LambdaName"
+                            }
                         },
                         "ResultSelector": {
                             "Success.$": "$.Payload.Success"
                         },
-                        "ResultPath": "$.RunMeasurement",
+                        "ResultPath": "$.DestroyFunction",
                         "End": true
                     }
                 }
@@ -92,7 +194,6 @@
             "Parameters": {
                 "FunctionName": "${CombineMeasurementsFunction}",
                 "Payload": {
-                    "ProjectPath.$": "$.ProjectPath",
                     "BuildId.$": "$.BuildProject.BuildId"
                 }
             },
@@ -100,11 +201,31 @@
                 "MeasurementFile.$": "$.Payload.MeasurementFile"
             },
             "ResultPath": "$.CombineMeasurements",
-            "Next": "BuildSuccess"
+            "Next": "NotifySuccess"
+        },
+
+        "NotifyFailure": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+                "TopicArn": "${NotificationTopic}",
+                "Message.$": "States.Format('Measurements FAILED: {}', $.ProjectPath)"
+            },
+            "Next": "BuildFailed"
         },
 
         "BuildFailed": {
             "Type": "Fail"
+        },
+
+        "NotifySuccess": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+                "TopicArn": "${NotificationTopic}",
+                "Message.$": "States.Format('Measurements posted: {}', $.CombineMeasurements.MeasurementFile)"
+            },
+            "Next": "BuildSuccess"
         },
 
         "BuildSuccess": {
