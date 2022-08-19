@@ -16,14 +16,16 @@ This module is used to benchmark .NET AWS Lambda functions with different compil
 
 ## Benchmarked Projects
 
-1. [AwsSdk](Projects/AwsSdk/): benchmark using AWS .NET SDK ([Results](Data/AwsSdk%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [AwsNewtonsoftJson](Projects/AwsNewtonsoftJson/): using AWS .NET SDK and Newtonsoft JSON.NET ([Results](Data/AwsNewtonsoftJson%20%5Bus-west-2%5D%20(2022-08-03).csv))
+1. [AwsSdk](Projects/AwsSdk/): using AWS .NET SDK ([Results](Data/AwsSdk%20%5Bus-west-2%5D%20(2022-08-02).csv))
 1. [Minimal](Projects/Minimal/): minimal baseline project ([Results](Data/Minimal%20%5Bus-west-2%5D%20(2022-07-26).csv))
-1. [NewtonsoftJson](Projects/NewtonsoftJson/): benchmark using Newtonsoft JSON.NET ([Results](Data/NewtonsoftJson%20%5Bus-west-2%5D%20(2022-07-26).csv))
-1. [SampleAwsNewtonsoftTopLevel](Projects/SampleAwsNewtonsoftTopLevel/) ([Results](Data/SampleAwsNewtonsoftTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
-1. [SampleAwsSystemTextJsonTopLevel](Projects/SampleAwsSystemTextJsonTopLevel/) ([Results](Data/SampleAwsSystemTextJsonTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
-1. [SampleMinimalApi](Projects/SampleMinimalApi/) ([Results](Data/SampleMinimalApi%20%5Bus-west-2%5D%20(2022-07-26).csv))
-1. [SourceGeneratorJson](Projects/SourceGeneratorJson/): benchmark using .NET 6+ source generators for JSON parsing ([Results](Data/SourceGeneratorJson%20%5Bus-west-2%5D%20(2022-07-27).csv))
-1. [SystemTextJson](Projects/SystemTextJson/): benchmark using System.Text.Json ([Results](Data/SystemTextJson%20%5Bus-west-2%5D%20(2022-07-27).csv))
+1. [MinimalTopLevel](Projects/MinimalTopLevel/): minimal baseline project using top-level statements ([Results](Data/MinimalTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [NewtonsoftJson](Projects/NewtonsoftJson/): using Newtonsoft JSON.NET ([Results](Data/NewtonsoftJson%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SampleAwsNewtonsoftTopLevel](Projects/SampleAwsNewtonsoftTopLevel/): using AWS .NET SDK, Newtonsoft JSON.NET, and Top-Level Statements ([Results](Data/SampleAwsNewtonsoftTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SampleAwsSystemTextJsonTopLevel](Projects/SampleAwsSystemTextJsonTopLevel/): using AWS .NET SDK, System.Text.Json, and Top-Level Statements ([Results](Data/SampleAwsSystemTextJsonTopLevel%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SampleMinimalApi](Projects/SampleMinimalApi/): using ASP.NET Core Minimal API ([Results](Data/SampleMinimalApi%20%5Bus-west-2%5D%20(2022-07-26).csv))
+1. [SourceGeneratorJson](Projects/SourceGeneratorJson/): using .NET 6 source generators for JSON parsing ([Results](Data/SourceGeneratorJson%20%5Bus-west-2%5D%20(2022-07-27).csv))
+1. [SystemTextJson](Projects/SystemTextJson/): using System.Text.Json ([Results](Data/SystemTextJson%20%5Bus-west-2%5D%20(2022-07-27).csv))
 
 
 ## Using LambdaSharp.Benchmark
@@ -104,6 +106,13 @@ aws s3 cp "$ZIP_FILE" "s3://S3-BUCKET-NAME/Projects/SAMPLE-PROJECT.zip"
 This will automatically kick-off the a step-function to build and benchmark the code. Once completed, the resulting CSV can be find in `Reports/` folder on the S3 bucket.
 
 ## Release History
+
+### v1.2 (2022-08-29)
+
+* Changed build name pattern to improve default sorting
+* Added `AwsNewtonsoftJson` project to measure AWS SDK with Newtonsoft JSON.NET library using the class definition notation.
+* Modified `AwsSdk` to initialize S3 client outside of request.
+* Updated benchmark data set
 
 ### v1.1 (2022-07-30)
 

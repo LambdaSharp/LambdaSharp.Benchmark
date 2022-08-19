@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;netcoreapp3.1</TargetFrameworks>
+    <Deterministic>true</Deterministic>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <RootNamespace>Benchmark.AwsNewtonsoftJson</RootNamespace>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS1998</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.Core" Version="2.1.0" />
+    <PackageReference Include="Amazon.Lambda.Serialization.Json" Version="2.0.0" />
+    <PackageReference Include="AWSSDK.S3" Version="3.7.8.10" />
+  </ItemGroup>
+</Project>

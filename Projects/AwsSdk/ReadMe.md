@@ -18,11 +18,15 @@ namespace Benchmark.AwsSdk {
         //--- Fields ---
         private IAmazonS3? _s3Client;
 
-        //--- Methods ---
-        public async Task<Stream> ProcessAsync(Stream request) {
+        //--- Constructors ---
+        public Function() {
 
             // initialize S3 client
             _s3Client = new AmazonS3Client();
+        }
+
+        //--- Methods ---
+        public async Task<Stream> ProcessAsync(Stream request) {
             return Stream.Null;
         }
     }

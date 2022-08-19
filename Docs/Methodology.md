@@ -88,6 +88,7 @@ Each compiled function is then deployed as an AWS Lambda function in `us-west-2`
 |512    |
 |1024   |
 |1769   |
+|5120   |
 
 ## Execution
 
@@ -104,8 +105,8 @@ The measurements are then tallied into a CSV file.
 
 ```csv
 Project,Build,Runtime,Architecture,Tiered,Ready2Run,PreJIT,ZipSize,MemorySize,Runs,Init,Cold Used,Total Warm Used (100),Cost (µ$)
-Minimal,Minimal-Core31-Arm64-NoTC-NoR2R-NoPreJIT-1024,dotnetcore3.1,arm64,no,no,no,17801,1024MB,100,162.08,10.896,77.273,21.375600544639997
-Minimal,Minimal-Core31-Arm64-NoTC-NoR2R-NoPreJIT-128,dotnetcore3.1,arm64,no,no,no,17801,128MB,100,162.366,102.693,110.096,20.55465043991
+Minimal,Minimal-Core31-Arm64-NoTC-NoR2R-NoPreJIT-01024,dotnetcore3.1,arm64,no,no,no,17801,1024MB,100,162.08,10.896,77.273,21.375600544639997
+Minimal,Minimal-Core31-Arm64-NoTC-NoR2R-NoPreJIT-00128,dotnetcore3.1,arm64,no,no,no,17801,128MB,100,162.366,102.693,110.096,20.55465043991
 ```
 
 ## Implementation

@@ -157,7 +157,7 @@ public sealed class Function : ALambdaFunction<FunctionRequest, FunctionResponse
 
             // generate a run-spec for each memory configuration
             foreach(var memorySize in MemorySizes) {
-                var runSpecFileName = Path.ChangeExtension(runSpec.ZipFile, extension: null) + $"-{memorySize}.json";
+                var runSpecFileName = Path.ChangeExtension(runSpec.ZipFile, extension: null) + $"-{memorySize:00000}.json";
                 LogInfo($"Writing run-spec file to s3://{BuildBucketName}/{runSpecFileName}");
                 await S3Client.PutObjectAsync(new() {
                     BucketName = BuildBucketName,
