@@ -10,6 +10,8 @@ namespace Benchmark.SystemTextJson {
     public sealed class Function {
 
         //--- Methods ---
-        public async Task<Stream> ProcessAsync(Root request) => Stream.Null;
+        public async Task<Stream> ProcessAsync(Root request) {
+            return Stream.Null;
+        }
     }
 }

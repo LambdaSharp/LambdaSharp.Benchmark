@@ -48,7 +48,7 @@ function build_function() {
             FRAMEWORK_LABEL="Core31"
             ;;
         *)
-            echo "Invalid framework: $1"
+            echo "Invalid framework: $2"
             exit 1
             ;;
     esac

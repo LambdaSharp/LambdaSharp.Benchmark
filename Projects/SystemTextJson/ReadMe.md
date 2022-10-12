@@ -10,8 +10,9 @@ The purpose of this project is compare the `System.Text` JSON serializer perform
 using System.IO;
 using System.Threading.Tasks;
 using Amazon.Lambda.Core;
+using Amazon.Lambda.Serialization.SystemTextJson;
 
-[assembly:LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
+[assembly:LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]
 
 namespace Benchmark.SystemTextJson {
 
